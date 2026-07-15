@@ -1,0 +1,78 @@
+databases:
+  - name: analytics-dash-db
+    databaseName: analytics_dash
+    user: analytics_dash
+    plan: free
+
+envVarGroups:
+  # Shared across the API and the sync cron job so both encrypt/decrypt
+  # OAuth tokens with the same key and hit the same Meta app. Fill these
+  # in once in the Render dashboard after the first deploy -- see
+  # README.md for where each value comes from.
+  - name: analytics-dash-secrets
+    envVars:
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+
+services:
+  - type: web
+    name: analytics-dash-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - fromGroup:
+          name: analytics-dash-secrets
+      - key: DATABASE_URL
+        fromDatabase:
+          name: analytics-dash-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: META_GRAPH_API_VERSION
+        value: v22.0
+      # Set these after the API and frontend are deployed once, so you
+      # have their real *.onrender.com URLs to fill in.
+      - key: INSTAGRAM_REDIRECT_URI
+        sync: false
+      - key: FRONTEND_BASE_URL
+        sync: false
+
+  - type: cron
+    name: analytics-dash-sync
+    runtime: python
+    rootDir: backend
+    plan: starter # Render has no free tier for cron jobs; this is the cheapest paid tier.
+    schedule: "0 */4 * * *" # every 4 hours -- adjust to taste, mind the ~200 calls/hour Graph API limit
+    buildCommand: pip install -r requirements.txt
+    startCommand: python sync_cron.py
+    envVars:
+      - fromGroup:
+          name: analytics-dash-secrets
+      - key: DATABASE_URL
+        fromDatabase:
+          name: analytics-dash-db
+          property: connectionString
+      - key: META_GRAPH_API_VERSION
+        value: v22.0
+
+  - type: web
+    name: analytics-dash-frontend
+    runtime: static
+    rootDir: frontend
+    plan: free
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Set to the analytics-dash-api service's live URL after first deploy.
+      - key: VITE_API_BASE_URL
+        sync: false
