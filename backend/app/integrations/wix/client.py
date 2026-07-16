@@ -90,11 +90,19 @@ class WixAnalyticsClient:
         end: str,
         timezone: str,
         filters: list[dict] | None = None,
+        sort_field: str | None = None,
     ) -> list[dict]:
+        # Offset-based pagination is only stable if the underlying query
+        # has a deterministic order -- without a sort_field, results exceeding
+        # one page (MAX_PAGE_SIZE rows) can shuffle between fetches and the
+        # same row can show up on two different pages. Callers should always
+        # pass one of the queried fields here; see sync_wix_connection.
         rows: list[dict] = []
         offset = 0
         while True:
-            page = self.query_model(model_id, fields, start, end, timezone, filters=filters, offset=offset)
+            page = self.query_model(
+                model_id, fields, start, end, timezone, filters=filters, sort_field=sort_field, offset=offset
+            )
             page_rows = page.get("results", [])
             rows.extend(page_rows)
             if len(page_rows) < MAX_PAGE_SIZE:

@@ -109,22 +109,40 @@ def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
 
         # -- Traffic (sessions/views by day + page) --
         traffic_rows = client.iter_model_rows(
-            TRAFFIC_MODEL_ID, TRAFFIC_FIELDS, _iso(start), _iso(end), site_timezone, filters=TRAFFIC_FILTERS
+            TRAFFIC_MODEL_ID,
+            TRAFFIC_FIELDS,
+            _iso(start),
+            _iso(end),
+            site_timezone,
+            filters=TRAFFIC_FILTERS,
+            sort_field="traffic.created_timeframe",
         )
         db.query(WebsiteDailyTraffic).filter(
             WebsiteDailyTraffic.connection_id == connection.id,
             WebsiteDailyTraffic.date >= start,
         ).delete()
+        seen_traffic_keys: set[tuple[str, str | None]] = set()
+        duplicate_traffic_rows = 0
         for row in traffic_rows:
             fields = row.get("fields", {})
             date_str = cell_value(fields.get("traffic.created_timeframe"))
             if not date_str:
                 continue
+            page_path = cell_value(fields.get("traffic.page_url_from"))
+            # (date, page_path) is the table's unique constraint -- dedupe here
+            # rather than let a duplicate crash the whole sync on commit. Even
+            # with sort_field set above, this is cheap insurance since the
+            # model's own grouping is otherwise opaque to us.
+            key = (date_str, page_path)
+            if key in seen_traffic_keys:
+                duplicate_traffic_rows += 1
+                continue
+            seen_traffic_keys.add(key)
             db.add(
                 WebsiteDailyTraffic(
                     connection_id=connection.id,
                     date=datetime.fromisoformat(date_str.replace("Z", "+00:00")),
-                    page_path=cell_value(fields.get("traffic.page_url_from")),
+                    page_path=page_path,
                     sessions=cell_value(fields.get("traffic.sessions_count")),
                     views=cell_value(fields.get("traffic.views_count")),
                     visitors=cell_value(fields.get("traffic.visitors_count")),
@@ -132,30 +150,61 @@ def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
                 )
             )
             rows_synced += 1
+        if duplicate_traffic_rows:
+            logger.warning(
+                "Wix traffic sync for connection %s skipped %d duplicate (date, page_path) rows",
+                connection.id,
+                duplicate_traffic_rows,
+            )
         db.commit()
 
         # -- Form submissions (individual rows, for applicant identity) --
-        form_rows = client.iter_model_rows(FORMS_MODEL_ID, FORMS_FIELDS, _iso(start), _iso(end), site_timezone)
+        form_rows = client.iter_model_rows(
+            FORMS_MODEL_ID,
+            FORMS_FIELDS,
+            _iso(start),
+            _iso(end),
+            site_timezone,
+            sort_field="forms_actions.created_date",
+        )
         db.query(WebsiteFormSubmission).filter(
             WebsiteFormSubmission.connection_id == connection.id,
             WebsiteFormSubmission.submitted_at >= start,
         ).delete()
+        seen_form_keys: set[tuple[str, str | None, str | None]] = set()
+        duplicate_form_rows = 0
         for row in form_rows:
             fields = row.get("fields", {})
             date_str = cell_value(fields.get("forms_actions.created_date"))
             if not date_str:
                 continue
+            form_name = cell_value(fields.get("forms_actions.form_name"))
+            contact_email = cell_value(fields.get("contacts.email"))
+            # No DB constraint on this table, so a duplicate wouldn't crash --
+            # but it would silently double-count submissions, which is just as
+            # bad for a "how many project applications came in" metric.
+            key = (date_str, form_name, contact_email)
+            if key in seen_form_keys:
+                duplicate_form_rows += 1
+                continue
+            seen_form_keys.add(key)
             db.add(
                 WebsiteFormSubmission(
                     connection_id=connection.id,
                     submitted_at=datetime.fromisoformat(date_str.replace("Z", "+00:00")),
-                    form_name=cell_value(fields.get("forms_actions.form_name")),
+                    form_name=form_name,
                     contact_name=cell_value(fields.get("contacts.full_name")),
-                    contact_email=cell_value(fields.get("contacts.email")),
+                    contact_email=contact_email,
                     raw_payload=row,
                 )
             )
             rows_synced += 1
+        if duplicate_form_rows:
+            logger.warning(
+                "Wix forms sync for connection %s skipped %d duplicate submission rows",
+                connection.id,
+                duplicate_form_rows,
+            )
         db.commit()
 
         run.status = SyncStatus.SUCCESS
