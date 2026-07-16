@@ -16,6 +16,7 @@ const METRIC_ROWS: { key: keyof NonNullable<PostDetail["latest_metrics"]>; label
   { key: "shares", label: "Shares", format: formatNumber },
   { key: "total_interactions", label: "Total interactions", format: formatNumber },
   { key: "avg_watch_time_sec", label: "Avg watch time", format: formatSeconds },
+  { key: "total_watch_time_sec", label: "Total watch time", format: formatSeconds },
   { key: "profile_visits", label: "Profile visits", format: formatNumber },
   { key: "bio_link_taps", label: "Bio link taps", format: formatNumber },
   { key: "follows", label: "New follows", format: formatNumber },

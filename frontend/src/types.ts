@@ -61,6 +61,7 @@ export type SortField =
   | "saves"
   | "shares"
   | "watch_time"
+  | "total_watch_time"
   | "profile_visits"
   | "bio_link_taps"
   | "follows"
