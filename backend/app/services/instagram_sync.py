@@ -102,6 +102,19 @@ def sync_instagram_account(db: Session, account: Account) -> SyncRun:
         # and iter_all_media already degrades gracefully to a partial list
         # if it gets rate-limited mid-pagination.
         media_items = client.iter_all_media()
+
+        # Stories are a separate edge from regular media, and only ever
+        # return whatever's still active (Instagram drops a story from
+        # the API ~24h after posting, with no way to retrieve it again --
+        # so this can never backfill history, only catch stories that are
+        # still up when a sync happens to run). The /stories edge doesn't
+        # reliably report media_product_type, so it's set explicitly here
+        # rather than trusting the response.
+        story_items = client.iter_all_stories()
+        for story in story_items:
+            story["media_product_type"] = "STORY"
+        media_items = media_items + story_items
+
         synced = 0
         rate_limited = False
 

@@ -34,6 +34,12 @@ MEDIA_FIELDS = [
     "comments_count",
 ]
 
+# Stories don't support captions, likes/comments counts, or (unconfirmed)
+# permalink the way feed/reel media do, so a smaller field set is
+# requested. If even this 400s, list_stories() falls back further.
+STORY_MEDIA_FIELDS = ["id", "media_type", "media_url", "timestamp", "permalink"]
+_STORY_MEDIA_FIELDS_FALLBACK = ["id", "media_type", "media_url", "timestamp"]
+
 # Metrics common to feed posts and reels.
 _COMMON_METRICS = ["reach", "saved", "shares", "total_interactions", "likes", "comments", "views"]
 # Reels-only.
@@ -117,6 +123,40 @@ class InstagramClient:
         while True:
             try:
                 page = self.list_media(after=after)
+            except InstagramRateLimitError:
+                break
+            items.extend(page.get("data", []))
+            after = page.get("paging", {}).get("cursors", {}).get("after")
+            if not after or not page.get("paging", {}).get("next"):
+                break
+        return items
+
+    def list_stories(self, after: str | None = None, limit: int = 50) -> dict:
+        """One page of the account's currently-active stories, newest
+        first. Instagram only exposes stories for ~24h after posting --
+        once a story expires it disappears from this edge entirely and
+        can't be retrieved again, so a sync only ever sees whatever is
+        still active when it happens to run. There's no way to backfill
+        past stories."""
+        params: dict[str, Any] = {"fields": ",".join(STORY_MEDIA_FIELDS), "limit": limit}
+        if after:
+            params["after"] = after
+        try:
+            return self._get("me/stories", params)
+        except InstagramRateLimitError:
+            raise
+        except InstagramAPIError as exc:
+            logger.warning("Story fields request failed, retrying with a reduced field set: %s", exc)
+            params["fields"] = ",".join(_STORY_MEDIA_FIELDS_FALLBACK)
+            return self._get("me/stories", params)
+
+    def iter_all_stories(self) -> list[dict]:
+        """Same pagination/rate-limit behavior as iter_all_media."""
+        items: list[dict] = []
+        after = None
+        while True:
+            try:
+                page = self.list_stories(after=after)
             except InstagramRateLimitError:
                 break
             items.extend(page.get("data", []))
