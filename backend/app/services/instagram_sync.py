@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import decrypt_token, encrypt_token
@@ -12,6 +13,15 @@ from app.integrations.instagram.client import InstagramAPIError, InstagramClient
 from app.integrations.instagram.parsing import parse_media_insights, parse_media_timestamp
 
 logger = logging.getLogger(__name__)
+
+
+class SyncAlreadyRunningError(RuntimeError):
+    """Raised when a sync is requested for an account that already has one
+    in flight (e.g. the cron job fired while a manual "Sync now" was still
+    running). Without this guard, two overlapping runs each do a
+    query-then-insert for the same posts and race each other into a
+    duplicate-key error."""
+
 
 # Refresh the long-lived token if it's within this many days of expiring.
 # Meta requires the token be >=24h old to refresh, and long-lived tokens
@@ -28,6 +38,30 @@ TOKEN_REFRESH_BUFFER = timedelta(days=10)
 # account is caught up, each post still gets refreshed roughly once per
 # scheduled run.
 RESYNC_STALE_AFTER = timedelta(hours=3)
+
+# A RUNNING sync row older than this is assumed abandoned (e.g. the
+# process was killed mid-run by a deploy) rather than genuinely still in
+# flight, so a new run is allowed to proceed instead of being blocked
+# forever by a row that never got marked finished.
+STALE_RUNNING_AFTER = timedelta(hours=1)
+
+
+def _check_no_concurrent_run(db: Session, account: Account) -> None:
+    existing = (
+        db.query(SyncRun)
+        .filter(SyncRun.account_id == account.id, SyncRun.status == SyncStatus.RUNNING)
+        .order_by(SyncRun.started_at.desc())
+        .first()
+    )
+    if existing is None:
+        return
+    started_at = existing.started_at
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) - started_at < STALE_RUNNING_AFTER:
+        raise SyncAlreadyRunningError(
+            f"A sync for this account started at {started_at.isoformat()} is still running."
+        )
 
 
 def _ensure_fresh_token(db: Session, account: Account) -> str:
@@ -52,6 +86,8 @@ def _ensure_fresh_token(db: Session, account: Account) -> str:
 def sync_instagram_account(db: Session, account: Account) -> SyncRun:
     if account.platform != Platform.INSTAGRAM:
         raise ValueError(f"Account {account.id} is not an Instagram account")
+
+    _check_no_concurrent_run(db, account)
 
     run = SyncRun(account_id=account.id, platform=Platform.INSTAGRAM, status=SyncStatus.RUNNING)
     db.add(run)
@@ -88,7 +124,29 @@ def sync_instagram_account(db: Session, account: Account) -> SyncRun:
             post.posted_at = parse_media_timestamp(item.get("timestamp"))
             post.raw_payload = item
             db.add(post)
-            db.flush()  # ensure post.id is populated for new rows
+            try:
+                db.flush()  # ensure post.id is populated for new rows
+            except IntegrityError:
+                # Another concurrent run (the guard above should normally
+                # prevent this, but two requests can still start within
+                # the same instant) already inserted this post first.
+                # Fall back to updating that row instead of failing.
+                db.rollback()
+                post = (
+                    db.query(Post)
+                    .filter(Post.platform == Platform.INSTAGRAM, Post.external_media_id == external_id)
+                    .one()
+                )
+                post.media_type = item.get("media_type")
+                post.media_product_type = item.get("media_product_type")
+                post.caption = item.get("caption")
+                post.permalink = item.get("permalink")
+                post.thumbnail_url = item.get("thumbnail_url") or item.get("media_url")
+                post.posted_at = parse_media_timestamp(item.get("timestamp"))
+                post.raw_payload = item
+                db.add(post)
+                db.flush()
+                is_new_post = False
 
             if not is_new_post:
                 latest = (

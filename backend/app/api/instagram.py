@@ -14,7 +14,7 @@ from app.db.session import get_db
 from app.integrations.instagram import oauth as ig_oauth
 from app.integrations.instagram.client import InstagramClient
 from app.schemas.account import AccountStatusOut, SyncRunOut
-from app.services.instagram_sync import sync_instagram_account
+from app.services.instagram_sync import SyncAlreadyRunningError, sync_instagram_account
 
 router = APIRouter(prefix="/api/instagram", tags=["instagram"])
 
@@ -102,6 +102,8 @@ def trigger_sync(db: Session = Depends(get_db)) -> SyncRunOut:
 
     try:
         run = sync_instagram_account(db, account)
+    except SyncAlreadyRunningError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 -- surface the sync failure to the caller
         raise HTTPException(status_code=502, detail=f"Sync failed: {exc}") from exc
 
