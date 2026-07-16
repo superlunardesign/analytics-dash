@@ -131,6 +131,10 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
         >
           Connect Wix
         </a>
+        <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 10 }}>
+          You'll land on a Wix confirmation page after approving -- come back to this tab
+          afterward and refresh.
+        </p>
       </div>
     );
   }

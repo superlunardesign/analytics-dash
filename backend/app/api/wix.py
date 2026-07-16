@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.db.models import WixConnection
 from app.db.session import get_db
 from app.integrations.wix import oauth as wix_oauth
@@ -20,9 +19,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/install")
 def install() -> RedirectResponse:
-    settings = get_settings()
-    redirect_url = f"{settings.frontend_base_url}/?wix_connected=true"
-    return RedirectResponse(wix_oauth.build_install_url(redirect_url))
+    return RedirectResponse(wix_oauth.build_install_url())
 
 
 @router.post("/webhooks/app-instance-installed")

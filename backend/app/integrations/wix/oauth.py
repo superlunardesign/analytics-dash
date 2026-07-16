@@ -25,11 +25,16 @@ INSTALL_URL = "https://www.wix.com/installer/install"
 TOKEN_URL = "https://www.wixapis.com/oauth2/token"
 
 
-def build_install_url(redirect_url: str, state: str | None = None) -> str:
+def build_install_url() -> str:
+    """No redirectUrl param: Wix rejects it ("we couldn't find an app with
+    this redirect url") unless that exact URL is pre-registered somewhere
+    on the app -- which isn't exposed for a self-managed app with no OAuth
+    URLs section. Not needed anyway: the backend learns about a completed
+    install via the "App Instance Installed" webhook regardless of
+    whether the browser gets redirected anywhere afterward. Wix just
+    shows its own generic "installed" confirmation instead."""
     settings = get_settings()
-    params = {"appId": settings.wix_app_id, "redirectUrl": redirect_url}
-    if state:
-        params["state"] = state
+    params = {"appId": settings.wix_app_id}
     return f"{INSTALL_URL}?{urlencode(params)}"
 
 

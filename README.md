@@ -87,7 +87,13 @@ result purely via a webhook.
    grant the permissions from step 2 -- approve them.
 6. The dashboard's **Connect Wix** button (under "Show website traffic
    correlation") also links to the same install flow, if you'd rather start
-   from there.
+   from there. It doesn't redirect you back to the dashboard afterward --
+   `/installer/install` rejects a `redirectUrl` param unless that exact URL
+   is pre-registered somewhere Wix doesn't expose for a self-managed app
+   with no dashboard-page extension, so the app just omits it. You'll land
+   on Wix's own generic confirmation page after approving; go back to the
+   dashboard tab and refresh to see the connected status (the backend
+   already has it via the webhook regardless of where the browser ends up).
 
 ## 3. Deploy to Render
 
