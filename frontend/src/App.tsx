@@ -29,16 +29,26 @@ function App() {
 
   const [showTraffic, setShowTraffic] = useState(false);
   const [selectedTrafficDate, setSelectedTrafficDate] = useState<string | null>(null);
+  const [trafficRange, setTrafficRange] = useState<{ start: string; end: string } | null>(null);
 
   const dateWindow = useMemo(() => {
-    if (!selectedTrafficDate) return null;
-    const center = new Date(selectedTrafficDate);
-    const from = new Date(center);
-    from.setDate(from.getDate() - DATE_FILTER_WINDOW_DAYS);
-    const to = new Date(center);
-    to.setDate(to.getDate() + DATE_FILTER_WINDOW_DAYS);
-    return { from: from.toISOString(), to: to.toISOString() };
-  }, [selectedTrafficDate]);
+    // Clicking a specific point narrows to +/-3 days of that date; with no
+    // point selected, the posts table falls back to whatever broader range
+    // the traffic panel itself is showing, so "all the graphs and posts"
+    // stay in agreement.
+    if (selectedTrafficDate) {
+      const center = new Date(selectedTrafficDate);
+      const from = new Date(center);
+      from.setDate(from.getDate() - DATE_FILTER_WINDOW_DAYS);
+      const to = new Date(center);
+      to.setDate(to.getDate() + DATE_FILTER_WINDOW_DAYS);
+      return { from: from.toISOString(), to: to.toISOString() };
+    }
+    if (showTraffic && trafficRange) {
+      return { from: trafficRange.start, to: trafficRange.end };
+    }
+    return null;
+  }, [selectedTrafficDate, showTraffic, trafficRange]);
 
   const refreshStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -173,7 +183,11 @@ function App() {
 
       {showTraffic && (
         <div style={{ marginBottom: 20 }}>
-          <WebsiteTrafficPanel selectedDate={selectedTrafficDate} onSelectDate={setSelectedTrafficDate} />
+          <WebsiteTrafficPanel
+            selectedDate={selectedTrafficDate}
+            onSelectDate={setSelectedTrafficDate}
+            onRangeChange={setTrafficRange}
+          />
         </div>
       )}
 
@@ -221,6 +235,11 @@ function App() {
             >
               Clear
             </button>
+          </span>
+        )}
+        {!selectedTrafficDate && showTraffic && trafficRange && (
+          <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+            Matching the traffic panel's date range ({trafficRange.start.slice(0, 10)} to {trafficRange.end.slice(0, 10)}).
           </span>
         )}
       </div>

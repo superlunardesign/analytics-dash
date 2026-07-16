@@ -33,9 +33,22 @@ const FORM_COLOR_SLOTS = [
 
 const DEFAULT_FORM_NAME = "Project Inquiry";
 
+// Sessions/views/visitors are all "count of site events per day" -- the
+// same unit and a comparable scale -- so they validly share one axis.
+// Forms get the second axis since submission counts are a different unit
+// entirely (a handful per day vs. hundreds of sessions); see LineChart's
+// axis labels, which always name the unit so the two scales read
+// unambiguously rather than inviting a false comparison.
+const METRIC_CONFIG: { key: "sessions" | "views" | "visitors"; label: string; color: string }[] = [
+  { key: "sessions", label: "Sessions", color: "var(--series-blue)" },
+  { key: "views", label: "Views", color: "var(--series-aqua)" },
+  { key: "visitors", label: "Visitors", color: "var(--series-violet)" },
+];
+
 interface WebsiteTrafficPanelProps {
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
+  onRangeChange?: (range: { start: string; end: string }) => void;
 }
 
 function rangeForPreset(preset: RangePreset): { start: string; end: string } {
@@ -53,7 +66,7 @@ function toDateInputValue(iso: string): string {
   return iso.slice(0, 10);
 }
 
-export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTrafficPanelProps) {
+export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange }: WebsiteTrafficPanelProps) {
   const [status, setStatus] = useState<WixStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -68,9 +81,20 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [formNames, setFormNames] = useState<string[]>([]);
   const [selectedForms, setSelectedForms] = useState<Set<string> | null>(null);
+  const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(
+    () => new Set(METRIC_CONFIG.map((m) => m.key))
+  );
   const [dataLoading, setDataLoading] = useState(false);
 
   const range = useMemo(() => customRange ?? rangeForPreset(preset), [customRange, preset]);
+
+  // Lets the posts table below scope itself to the same range as these
+  // charts, so "all the graphs and posts" agree on one window -- only
+  // once actually connected, since an unconnected panel's range is
+  // meaningless as a posts filter.
+  useEffect(() => {
+    if (status?.connected) onRangeChange?.(range);
+  }, [status?.connected, range.start, range.end, onRangeChange]);
 
   const refreshStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -145,6 +169,15 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
     });
   };
 
+  const toggleMetric = (key: string) => {
+    setSelectedMetrics((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const activeForms = selectedForms ?? new Set<string>();
 
   const totals = daily.reduce(
@@ -164,16 +197,23 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
   );
 
   const dates = daily.map((d) => d.date);
-  const formsSeries = useMemo(
-    () =>
-      [...activeForms].map((name) => ({
-        key: name,
-        label: name,
-        color: formColor.get(name) ?? "var(--text-muted)",
-        values: daily.map((d) => d.submissions_by_form[name] ?? 0),
-      })),
-    [activeForms, daily, formColor]
-  );
+  const combinedSeries = useMemo(() => {
+    const metricSeries = METRIC_CONFIG.filter((m) => selectedMetrics.has(m.key)).map((m) => ({
+      key: m.key,
+      label: m.label,
+      color: m.color,
+      values: daily.map((d) => d[m.key]),
+      axis: "left" as const,
+    }));
+    const formSeries = [...activeForms].map((name) => ({
+      key: name,
+      label: name,
+      color: formColor.get(name) ?? "var(--text-muted)",
+      values: daily.map((d) => d.submissions_by_form[name] ?? 0),
+      axis: "right" as const,
+    }));
+    return [...metricSeries, ...formSeries];
+  }, [selectedMetrics, activeForms, daily, formColor]);
 
   const recentSubmissions = submissions.filter((s) => activeForms.has(s.form_name ?? ""));
 
@@ -350,17 +390,17 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
         <StatTile label="Applications" value={formatNumber(totals.applications)} accent="var(--series-orange)" />
       </div>
 
-      {/* Which form(s) count as "Applications" -- fixed color per form,
-          independent of which are currently toggled on. */}
-      {formNames.length > 0 && (
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-          {formNames.map((name) => {
-            const active = activeForms.has(name);
-            const color = formColor.get(name) ?? "var(--text-muted)";
+      {/* Toggle rows -- metrics share the left axis, forms the right one.
+          Each chip's color is fixed regardless of what else is toggled. */}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Traffic:</span>
+          {METRIC_CONFIG.map((m) => {
+            const active = selectedMetrics.has(m.key);
             return (
               <button
-                key={name}
-                onClick={() => toggleForm(name)}
+                key={m.key}
+                onClick={() => toggleMetric(m.key)}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -376,57 +416,66 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
               >
                 <span
                   aria-hidden
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: active ? color : "var(--gridline)",
-                    display: "inline-block",
-                  }}
+                  style={{ width: 8, height: 8, borderRadius: "50%", background: active ? m.color : "var(--gridline)", display: "inline-block" }}
                 />
-                {name}
+                {m.label}
               </button>
             );
           })}
         </div>
-      )}
+        {formNames.length > 0 && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Forms:</span>
+            {formNames.map((name) => {
+              const active = activeForms.has(name);
+              const color = formColor.get(name) ?? "var(--text-muted)";
+              return (
+                <button
+                  key={name}
+                  onClick={() => toggleForm(name)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: active ? "var(--gridline)" : "transparent",
+                    border: "1px solid var(--border)",
+                    borderRadius: 999,
+                    padding: "4px 10px",
+                    fontSize: 12,
+                    color: active ? "var(--text-primary)" : "var(--text-muted)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: active ? color : "var(--gridline)",
+                      display: "inline-block",
+                    }}
+                  />
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {dataLoading ? (
         <p style={{ fontSize: 12, color: "var(--text-muted)" }}>Loading…</p>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20 }}>
-          <div>
-            <h3 style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Sessions</h3>
-            <LineChart
-              dates={dates}
-              series={[{ key: "sessions", label: "Sessions", color: "var(--series-blue)", values: daily.map((d) => d.sessions) }]}
-              selectedDate={selectedDate}
-              onSelectDate={onSelectDate}
-            />
-          </div>
-          <div>
-            <h3 style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Views</h3>
-            <LineChart
-              dates={dates}
-              series={[{ key: "views", label: "Views", color: "var(--series-aqua)", values: daily.map((d) => d.views) }]}
-              selectedDate={selectedDate}
-              onSelectDate={onSelectDate}
-            />
-          </div>
-          <div>
-            <h3 style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Visitors</h3>
-            <LineChart
-              dates={dates}
-              series={[{ key: "visitors", label: "Visitors", color: "var(--series-violet)", values: daily.map((d) => d.visitors) }]}
-              selectedDate={selectedDate}
-              onSelectDate={onSelectDate}
-            />
-          </div>
-          <div>
-            <h3 style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Applications by form</h3>
-            <LineChart dates={dates} series={formsSeries} selectedDate={selectedDate} onSelectDate={onSelectDate} />
-          </div>
-        </div>
+        <LineChart
+          dates={dates}
+          series={combinedSeries}
+          selectedDate={selectedDate}
+          onSelectDate={onSelectDate}
+          leftAxisLabel="Website traffic"
+          rightAxisLabel="Form submissions"
+          height={280}
+        />
       )}
 
       {selectedDate && (

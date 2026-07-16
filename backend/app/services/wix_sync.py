@@ -89,6 +89,26 @@ def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
+def _upsert_form_rows(db: Session, rows: list[dict]) -> None:
+    """Same rationale as _upsert_traffic_rows: the delete-then-reinsert
+    below is best-effort, and a re-fetched row that wasn't actually deleted
+    should update in place, not accumulate as a duplicate -- see the
+    uq_form_submission_natural_key migration for why this table needed a
+    constraint added after the fact."""
+    if not rows:
+        return
+    table = WebsiteFormSubmission.__table__
+    dialect = db.get_bind().dialect.name
+    insert_fn = pg_insert if dialect == "postgresql" else sqlite_insert
+    stmt = insert_fn(table).values(rows)
+    update_cols = {col: stmt.excluded[col] for col in ("contact_name", "raw_payload")}
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["connection_id", "submitted_at", "form_name", "contact_email"],
+        set_=update_cols,
+    )
+    db.execute(stmt)
+
+
 def _upsert_traffic_rows(db: Session, rows: list[dict]) -> None:
     """INSERT ... ON CONFLICT DO UPDATE on (connection_id, date, page_path),
     instead of a plain bulk INSERT.
@@ -215,6 +235,7 @@ def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
         ).delete()
         seen_form_keys: set[tuple[str, str | None, str | None]] = set()
         duplicate_form_rows = 0
+        form_values: list[dict] = []
         for row in form_rows:
             fields = row.get("fields", {})
             date_str = cell_value(fields.get("forms_actions.created_date"))
@@ -222,23 +243,24 @@ def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
                 continue
             form_name = cell_value(fields.get("forms_actions.form_name"))
             contact_email = cell_value(fields.get("contacts.email"))
-            # No DB constraint on this table, so a duplicate wouldn't crash --
-            # but it would silently double-count submissions, which is just as
-            # bad for a "how many project applications came in" metric.
+            # (connection, submitted_at, form_name, contact_email) is the
+            # table's unique constraint -- dedupe in-batch too, same as
+            # traffic, since Postgres rejects ON CONFLICT hitting the same
+            # row twice within one statement.
             key = (date_str, form_name, contact_email)
             if key in seen_form_keys:
                 duplicate_form_rows += 1
                 continue
             seen_form_keys.add(key)
-            db.add(
-                WebsiteFormSubmission(
-                    connection_id=connection.id,
-                    submitted_at=datetime.fromisoformat(date_str.replace("Z", "+00:00")),
-                    form_name=form_name,
-                    contact_name=cell_value(fields.get("contacts.full_name")),
-                    contact_email=contact_email,
-                    raw_payload=row,
-                )
+            form_values.append(
+                {
+                    "connection_id": connection.id,
+                    "submitted_at": datetime.fromisoformat(date_str.replace("Z", "+00:00")),
+                    "form_name": form_name,
+                    "contact_name": cell_value(fields.get("contacts.full_name")),
+                    "contact_email": contact_email,
+                    "raw_payload": row,
+                }
             )
             rows_synced += 1
         if duplicate_form_rows:
@@ -247,6 +269,7 @@ def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
                 connection.id,
                 duplicate_form_rows,
             )
+        _upsert_form_rows(db, form_values)
         db.commit()
 
         run.status = SyncStatus.SUCCESS

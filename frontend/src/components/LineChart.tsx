@@ -6,6 +6,13 @@ export interface LineChartSeries {
   label: string;
   color: string;
   values: (number | null)[];
+  // Which y-axis this series is scaled against. Series sharing an axis (e.g.
+  // sessions/views/visitors -- all "count of site events per day") compare
+  // validly on the same scale. A second axis is only for a genuinely
+  // different unit (form submissions) that would otherwise flatten to
+  // nothing against traffic's much larger numbers -- see the axis labels,
+  // which always name the unit so the two scales are never ambiguous.
+  axis?: "left" | "right";
 }
 
 interface LineChartProps {
@@ -14,13 +21,13 @@ interface LineChartProps {
   selectedDate: string | null;
   onSelectDate: (date: string) => void;
   valueFormatter?: (v: number) => string;
+  leftAxisLabel?: string;
+  rightAxisLabel?: string;
   height?: number;
 }
 
-const WIDTH = 720;
-const PAD_LEFT = 48;
-const PAD_RIGHT = 16;
-const PAD_TOP = 14;
+const WIDTH = 760;
+const PAD_TOP = 20;
 const PAD_BOTTOM = 28;
 
 // Rounds a max value up to a "nice" step (1/2/5 x 10^n) so axis ticks read
@@ -49,22 +56,43 @@ function defaultFormat(v: number): string {
   return String(v);
 }
 
-export function LineChart({ dates, series, selectedDate, onSelectDate, valueFormatter, height = 200 }: LineChartProps) {
+export function LineChart({
+  dates,
+  series,
+  selectedDate,
+  onSelectDate,
+  valueFormatter,
+  leftAxisLabel,
+  rightAxisLabel,
+  height = 240,
+}: LineChartProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const format = valueFormatter ?? defaultFormat;
 
+  const hasRightAxis = series.some((s) => s.axis === "right");
+  const padLeft = 48;
+  const padRight = hasRightAxis ? 48 : 16;
+
   const plot = useMemo(() => {
-    const innerWidth = WIDTH - PAD_LEFT - PAD_RIGHT;
+    const innerWidth = WIDTH - padLeft - padRight;
     const innerHeight = height - PAD_TOP - PAD_BOTTOM;
 
-    const maxValue = Math.max(1, ...series.flatMap((s) => s.values.filter((v): v is number => v != null)));
-    const ticks = niceTicks(maxValue);
-    const tickMax = ticks[ticks.length - 1];
+    const leftSeries = series.filter((s) => (s.axis ?? "left") === "left");
+    const rightSeries = series.filter((s) => s.axis === "right");
 
-    const xFor = (i: number) => PAD_LEFT + (dates.length <= 1 ? innerWidth / 2 : (i / (dates.length - 1)) * innerWidth);
-    const yFor = (v: number) => PAD_TOP + innerHeight - (v / tickMax) * innerHeight;
+    const leftMax = Math.max(1, ...leftSeries.flatMap((s) => s.values.filter((v): v is number => v != null)));
+    const rightMax = Math.max(1, ...rightSeries.flatMap((s) => s.values.filter((v): v is number => v != null)));
+    const leftTicks = leftSeries.length > 0 ? niceTicks(leftMax) : [];
+    const rightTicks = rightSeries.length > 0 ? niceTicks(rightMax) : [];
+    const leftTickMax = leftTicks.length ? leftTicks[leftTicks.length - 1] : 1;
+    const rightTickMax = rightTicks.length ? rightTicks[rightTicks.length - 1] : 1;
+
+    const xFor = (i: number) => padLeft + (dates.length <= 1 ? innerWidth / 2 : (i / (dates.length - 1)) * innerWidth);
+    const yForLeft = (v: number) => PAD_TOP + innerHeight - (v / leftTickMax) * innerHeight;
+    const yForRight = (v: number) => PAD_TOP + innerHeight - (v / rightTickMax) * innerHeight;
 
     const seriesPaths = series.map((s) => {
+      const yFor = s.axis === "right" ? yForRight : yForLeft;
       const points = s.values.map((v, i) => ({ x: xFor(i), y: v == null ? null : yFor(v), v, i }));
       let path = "";
       let drawing = false;
@@ -79,11 +107,10 @@ export function LineChart({ dates, series, selectedDate, onSelectDate, valueForm
       return { ...s, points, path };
     });
 
-    // X positions shared across all series (dates are aligned).
     const xPositions = dates.map((_, i) => xFor(i));
 
-    return { xPositions, seriesPaths, ticks, tickMax, yFor, innerWidth, innerHeight };
-  }, [dates, series, height]);
+    return { xPositions, seriesPaths, leftTicks, rightTicks, yForLeft, yForRight, innerWidth, innerHeight };
+  }, [dates, series, height, padLeft, padRight]);
 
   if (dates.length === 0) {
     return (
@@ -126,6 +153,12 @@ export function LineChart({ dates, series, selectedDate, onSelectDate, valueForm
 
   return (
     <div style={{ position: "relative" }}>
+      {(leftAxisLabel || rightAxisLabel) && (
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)", padding: `0 ${hasRightAxis ? 40 : 8}px 0 40px` }}>
+          <span>{leftAxisLabel}</span>
+          <span>{rightAxisLabel}</span>
+        </div>
+      )}
       <svg
         viewBox={`0 0 ${WIDTH} ${height}`}
         style={{ width: "100%", height: "auto", display: "block" }}
@@ -133,18 +166,33 @@ export function LineChart({ dates, series, selectedDate, onSelectDate, valueForm
         onMouseLeave={() => setHoverIndex(null)}
         onClick={handleClick}
       >
-        {/* Y-axis gridlines + tick labels */}
-        {plot.ticks.map((t) => {
-          const y = plot.yFor(t);
+        {/* Left-axis gridlines + tick labels (the shared grid; the right
+            axis reuses these gridline positions proportionally rather than
+            drawing a second, conflicting grid). */}
+        {plot.leftTicks.map((t) => {
+          const y = plot.yForLeft(t);
           return (
-            <g key={t}>
-              <line x1={PAD_LEFT} x2={WIDTH - PAD_RIGHT} y1={y} y2={y} stroke="var(--gridline)" strokeWidth={1} />
-              <text x={PAD_LEFT - 8} y={y} dy={3} fontSize={10} fill="var(--text-muted)" textAnchor="end">
+            <g key={`l-${t}`}>
+              <line x1={padLeft} x2={WIDTH - padRight} y1={y} y2={y} stroke="var(--gridline)" strokeWidth={1} />
+              <text x={padLeft - 8} y={y} dy={3} fontSize={10} fill="var(--text-muted)" textAnchor="end">
                 {format(t)}
               </text>
             </g>
           );
         })}
+
+        {/* Right-axis tick labels only (no second gridline grid, per the
+            one-shared-grid convention -- ticks still align to the same
+            fractional height as the left axis since both use niceTicks). */}
+        {hasRightAxis &&
+          plot.rightTicks.map((t) => {
+            const y = plot.yForRight(t);
+            return (
+              <text key={`r-${t}`} x={WIDTH - padRight + 8} y={y} dy={3} fontSize={10} fill="var(--text-muted)" textAnchor="start">
+                {format(t)}
+              </text>
+            );
+          })}
 
         {/* X-axis date ticks */}
         {tickIndices.map((i) => (
@@ -197,7 +245,7 @@ export function LineChart({ dates, series, selectedDate, onSelectDate, valueForm
             position: "absolute",
             left: `${(plot.xPositions[hoverIndex] / WIDTH) * 100}%`,
             top: 0,
-            transform: "translateX(-50%)",
+            transform: plot.xPositions[hoverIndex] > WIDTH / 2 ? "translateX(-100%)" : "translateX(0%)",
             background: "var(--surface-1)",
             border: "1px solid var(--border)",
             borderRadius: 6,

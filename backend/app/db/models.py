@@ -234,9 +234,23 @@ class WebsiteFormSubmission(Base):
     from the `forms-actions` semantic model. Individual-submission
     granularity (not just a daily count) so submitter identity is
     available, matching what the creator's manual spreadsheet already
-    captures."""
+    captures.
+
+    The unique constraint exists because Wix's forms-actions model has no
+    submission-ID field to key off of, and the rolling-refresh sync's
+    delete-then-reinsert can miss deleting the boundary day's rows for the
+    same reason it did on WebsiteDailyTraffic (see wix_sync.py) -- without
+    a constraint, that silently re-inserted the same real submission on
+    every cron cycle instead of crashing, so a single submission could
+    balloon into a dozen+ duplicate rows over a few days.
+    """
 
     __tablename__ = "website_form_submissions"
+    __table_args__ = (
+        UniqueConstraint(
+            "connection_id", "submitted_at", "form_name", "contact_email", name="uq_form_submission_natural_key"
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     connection_id: Mapped[str] = mapped_column(String, ForeignKey("wix_connections.id"), nullable=False)
