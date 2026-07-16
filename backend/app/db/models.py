@@ -78,6 +78,16 @@ class Post(Base):
     # Auto-detected topic/category. Populated by a future classification pass; null until then.
     topic: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Manual overrides for metrics Instagram's API doesn't return for
+    # Reels at all (profile visits, bio link taps, new follows are only
+    # available for Feed posts -- see app/integrations/instagram/client.py).
+    # Populated by hand from what the creator sees in Instagram's own app,
+    # not by any sync. Take precedence over the synced snapshot value when
+    # present; see app/api/posts.py.
+    manual_profile_visits: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    manual_bio_link_taps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    manual_follows: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     # Full raw API payload for the media object, kept so we can backfill new
     # fields later without re-hitting the API.
     raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)

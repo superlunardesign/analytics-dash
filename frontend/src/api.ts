@@ -62,6 +62,20 @@ export function getPost(id: string): Promise<PostDetail> {
   return request(`/api/posts/${id}`);
 }
 
+export interface ManualMetricsInput {
+  profile_visits: number | null;
+  bio_link_taps: number | null;
+  follows: number | null;
+}
+
+export function setManualMetrics(id: string, payload: ManualMetricsInput): Promise<PostDetail> {
+  return request(`/api/posts/${id}/manual-metrics`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getWixStatus(): Promise<WixStatus> {
   return request("/api/wix/status");
 }

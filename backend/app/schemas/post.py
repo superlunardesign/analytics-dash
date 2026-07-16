@@ -38,6 +38,15 @@ class PostOut(BaseModel):
     topic: str | None = None
     latest_metrics: MetricSnapshotOut | None = None
 
+    # Manual corrections for metrics Instagram's API never returns for
+    # Reels (profile visits, bio link taps, follows). Kept separate from
+    # latest_metrics so the API is honest about what Instagram actually
+    # reported vs. what was entered by hand; the frontend prefers these
+    # over latest_metrics' values when present, and sorting does the same.
+    manual_profile_visits: int | None = None
+    manual_bio_link_taps: int | None = None
+    manual_follows: int | None = None
+
 
 class PostDetailOut(PostOut):
     metric_history: list[MetricSnapshotOut] = []
@@ -46,3 +55,9 @@ class PostDetailOut(PostOut):
 class PostListResponse(BaseModel):
     total: int
     items: list[PostOut]
+
+
+class ManualMetricsIn(BaseModel):
+    profile_visits: int | None = None
+    bio_link_taps: int | None = None
+    follows: int | None = None

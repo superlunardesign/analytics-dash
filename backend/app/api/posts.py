@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, aliased
 
 from app.db.models import Platform, Post, PostMetricSnapshot
 from app.db.session import get_db
-from app.schemas.post import MetricSnapshotOut, PostDetailOut, PostListResponse, PostOut
+from app.schemas.post import ManualMetricsIn, MetricSnapshotOut, PostDetailOut, PostListResponse, PostOut
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
@@ -46,6 +46,17 @@ _SORT_ATTR_MAP = {
     "likes": "likes",
     "reach": "reach",
     "total_interactions": "total_interactions",
+}
+
+# These three sort keys have a manual-override column on Post (see
+# models.py) that takes precedence over the synced snapshot value when
+# present -- Instagram never returns them for Reels at all, so sorting
+# needs to reflect whatever was entered by hand, not just leave those
+# posts sorting as if the metric were zero/null.
+_MANUAL_OVERRIDE_ATTR_MAP = {
+    "profile_visits": "manual_profile_visits",
+    "bio_link_taps": "manual_bio_link_taps",
+    "follows": "manual_follows",
 }
 
 
@@ -102,6 +113,14 @@ def list_posts(
 
     if sort_by == "posted_at":
         sort_col = Post.posted_at
+    elif sort_by in _MANUAL_OVERRIDE_ATTR_MAP:
+        # Prefer the manually-entered value (Reels only) over whatever
+        # Instagram's API returned, since for these three metrics it
+        # never returns anything for Reels at all -- see models.py.
+        sort_col = func.coalesce(
+            getattr(Post, _MANUAL_OVERRIDE_ATTR_MAP[sort_by]),
+            getattr(latest_snapshot, _SORT_ATTR_MAP[sort_by]),
+        )
     else:
         sort_col = getattr(latest_snapshot, _SORT_ATTR_MAP[sort_by])
     sort_col = sort_col.desc() if order == "desc" else sort_col.asc()
@@ -139,3 +158,28 @@ def get_post(post_id: str, db: Session = Depends(get_db)) -> PostDetailOut:
         latest_metrics=MetricSnapshotOut.model_validate(latest) if latest else None,
         metric_history=[MetricSnapshotOut.model_validate(s) for s in history],
     )
+
+
+@router.put("/{post_id}/manual-metrics", response_model=PostDetailOut)
+def set_manual_metrics(post_id: str, payload: ManualMetricsIn, db: Session = Depends(get_db)) -> PostDetailOut:
+    """Manually corrects profile visits / bio link taps / follows for a
+    Reel -- Instagram's API never returns these for Reels at all (see
+    app/integrations/instagram/client.py), so this is the only way to
+    record them, e.g. from what's visible in Instagram's own app.
+    Restricted to Reels since that's the only case where the API has
+    nothing to offer; feed posts already get real synced values.
+    """
+    post = db.query(Post).filter(Post.id == post_id).one_or_none()
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    if (post.media_product_type or "").upper() != "REELS":
+        raise HTTPException(status_code=400, detail="Manual metric overrides are only supported for Reels")
+
+    post.manual_profile_visits = payload.profile_visits
+    post.manual_bio_link_taps = payload.bio_link_taps
+    post.manual_follows = payload.follows
+    db.add(post)
+    db.commit()
+    db.refresh(post)
+
+    return get_post(post_id, db)

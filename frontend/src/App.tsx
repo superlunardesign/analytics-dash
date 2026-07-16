@@ -115,6 +115,11 @@ function App() {
     }
   };
 
+  const handlePostSaved = (updated: PostDetail) => {
+    setSelectedPost(updated);
+    refreshPosts();
+  };
+
   const totals = useMemo(() => {
     const acc = { views: 0, saves: 0, shares: 0, watchSum: 0, watchCount: 0 };
     for (const p of posts) {
@@ -211,7 +216,12 @@ function App() {
 
       <PostsTable posts={posts} sortBy={sortBy} order={order} onSort={handleSort} onSelect={handleSelectPost} />
 
-      <PostDetailDrawer post={selectedPost} loading={selectedLoading} onClose={() => setSelectedPost(null)} />
+      <PostDetailDrawer
+        post={selectedPost}
+        loading={selectedLoading}
+        onClose={() => setSelectedPost(null)}
+        onSaved={handlePostSaved}
+      />
     </div>
   );
 }

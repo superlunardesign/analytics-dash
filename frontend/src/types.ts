@@ -26,6 +26,11 @@ export interface Post {
   posted_at: string | null;
   topic: string | null;
   latest_metrics: MetricSnapshot | null;
+  // Manually-entered overrides for metrics Instagram never returns for
+  // Reels (profile visits, bio link taps, follows). Only ever set on Reels.
+  manual_profile_visits: number | null;
+  manual_bio_link_taps: number | null;
+  manual_follows: number | null;
 }
 
 export interface PostDetail extends Post {
