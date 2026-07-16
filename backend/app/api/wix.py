@@ -33,6 +33,15 @@ async def app_instance_installed(request: Request, db: Session = Depends(get_db)
         # 400 tells Wix not to bother retrying an unverifiable payload.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    # Logged unconditionally (not just on mismatch) so the *actual* string
+    # Wix sends is visible even when everything looks fine from Wix's
+    # side -- this event type was never confirmed against official docs
+    # (both Meta's and Wix's blocked direct fetches at different points),
+    # only inferred from a summarized search result. A silent mismatch
+    # here would make every install look successful to Wix while quietly
+    # doing nothing on our end, which matches exactly what's been observed.
+    logger.info("Received Wix webhook: eventType=%r instanceId=%r raw_envelope=%r", event.event_type, event.instance_id, event.raw_envelope)
+
     if event.event_type != APP_INSTANCE_INSTALLED_EVENT:
         # Only subscribed to this one event type; ack anything else so
         # Wix doesn't retry, but don't act on it.

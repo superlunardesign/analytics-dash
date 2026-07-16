@@ -32,6 +32,7 @@ class WixWebhookEvent:
     event_type: str
     instance_id: str
     data: dict[str, Any]
+    raw_envelope: dict[str, Any]
 
 
 def _normalize_pem_key(raw: str) -> str:
@@ -84,4 +85,5 @@ def verify_and_parse(raw_body: str) -> WixWebhookEvent:
         event_type=envelope.get("eventType", ""),
         instance_id=envelope.get("instanceId", ""),
         data=event_data,
+        raw_envelope=envelope,
     )
