@@ -54,6 +54,42 @@ export interface SyncRun {
   error_message: string | null;
 }
 
+export interface WixStatus {
+  connected: boolean;
+  site_display_name: string | null;
+  connected_at: string | null;
+}
+
+export interface WixSyncRun {
+  id: string;
+  status: "running" | "success" | "failed";
+  rows_synced: number;
+  started_at: string;
+  finished_at: string | null;
+  error_message: string | null;
+}
+
+export interface DailyTraffic {
+  date: string;
+  sessions: number;
+  views: number;
+  visitors: number;
+  form_submissions: number;
+}
+
+export interface TopPage {
+  page_path: string | null;
+  sessions: number;
+  views: number;
+}
+
+export interface FormSubmission {
+  submitted_at: string;
+  form_name: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+}
+
 export type SortField =
   | "posted_at"
   | "views"

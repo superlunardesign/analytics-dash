@@ -1,4 +1,15 @@
-import type { AccountStatus, PostDetail, PostListResponse, SortField, SyncRun } from "./types";
+import type {
+  AccountStatus,
+  DailyTraffic,
+  FormSubmission,
+  PostDetail,
+  PostListResponse,
+  SortField,
+  SyncRun,
+  TopPage,
+  WixStatus,
+  WixSyncRun,
+} from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
@@ -32,6 +43,8 @@ export interface ListPostsParams {
   media_product_type?: string;
   sort_by?: SortField;
   order?: "asc" | "desc";
+  date_from?: string;
+  date_to?: string;
   limit?: number;
   offset?: number;
 }
@@ -47,4 +60,31 @@ export function listPosts(params: ListPostsParams = {}): Promise<PostListRespons
 
 export function getPost(id: string): Promise<PostDetail> {
   return request(`/api/posts/${id}`);
+}
+
+export function getWixStatus(): Promise<WixStatus> {
+  return request("/api/wix/status");
+}
+
+export function triggerWixSync(): Promise<WixSyncRun> {
+  return request("/api/wix/sync", { method: "POST" });
+}
+
+export function wixInstallUrl(): string {
+  return `${API_BASE_URL}/api/wix/install`;
+}
+
+export function getDailyTraffic(start: string, end: string): Promise<DailyTraffic[]> {
+  const search = new URLSearchParams({ start, end });
+  return request(`/api/website/daily?${search.toString()}`);
+}
+
+export function getTopPages(start: string, end: string, limit = 10): Promise<TopPage[]> {
+  const search = new URLSearchParams({ start, end, limit: String(limit) });
+  return request(`/api/website/top-pages?${search.toString()}`);
+}
+
+export function getFormSubmissions(start: string, end: string): Promise<FormSubmission[]> {
+  const search = new URLSearchParams({ start, end });
+  return request(`/api/website/form-submissions?${search.toString()}`);
 }

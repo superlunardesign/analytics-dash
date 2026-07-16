@@ -50,6 +50,16 @@ services:
         sync: false
       - key: FRONTEND_BASE_URL
         sync: false
+      # Wix custom app (website traffic correlation) -- see README.md.
+      # No redirect URI needed here: Wix's install flow has no callback
+      # handshake, only a webhook (configured on the Wix app dashboard
+      # to point at this service's /api/wix/webhooks/app-instance-installed).
+      - key: WIX_APP_ID
+        sync: false
+      - key: WIX_APP_SECRET
+        sync: false
+      - key: WIX_WEBHOOK_PUBLIC_KEY
+        sync: false
 
   - type: cron
     name: analytics-dash-sync
@@ -75,6 +85,12 @@ services:
       - key: META_APP_ID
         sync: false
       - key: META_APP_SECRET
+        sync: false
+      # Must match analytics-dash-api exactly -- this service mints its
+      # own Wix access tokens the same way (client_credentials grant).
+      - key: WIX_APP_ID
+        sync: false
+      - key: WIX_APP_SECRET
         sync: false
 
   - type: web

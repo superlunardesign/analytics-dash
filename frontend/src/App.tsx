@@ -4,8 +4,11 @@ import { ConnectBar } from "./components/ConnectBar";
 import { PostDetailDrawer } from "./components/PostDetailDrawer";
 import { PostsTable } from "./components/PostsTable";
 import { StatTile } from "./components/StatTile";
+import { WebsiteTrafficPanel } from "./components/WebsiteTrafficPanel";
 import { formatNumber, formatSeconds } from "./format";
 import type { AccountStatus, Post, PostDetail, SortField, SyncRun } from "./types";
+
+const DATE_FILTER_WINDOW_DAYS = 3;
 
 const MEDIA_PRODUCT_TYPES = ["FEED", "REELS", "STORY"];
 
@@ -24,6 +27,19 @@ function App() {
   const [selectedPost, setSelectedPost] = useState<PostDetail | null>(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
 
+  const [showTraffic, setShowTraffic] = useState(false);
+  const [selectedTrafficDate, setSelectedTrafficDate] = useState<string | null>(null);
+
+  const dateWindow = useMemo(() => {
+    if (!selectedTrafficDate) return null;
+    const center = new Date(selectedTrafficDate);
+    const from = new Date(center);
+    from.setDate(from.getDate() - DATE_FILTER_WINDOW_DAYS);
+    const to = new Date(center);
+    to.setDate(to.getDate() + DATE_FILTER_WINDOW_DAYS);
+    return { from: from.toISOString(), to: to.toISOString() };
+  }, [selectedTrafficDate]);
+
   const refreshStatus = useCallback(async () => {
     setStatusLoading(true);
     try {
@@ -40,13 +56,15 @@ function App() {
         sort_by: sortBy,
         order,
         media_product_type: mediaProductType || undefined,
+        date_from: dateWindow?.from,
+        date_to: dateWindow?.to,
         limit: 200,
       });
       setPosts(res.items);
     } finally {
       setPostsLoading(false);
     }
-  }, [sortBy, order, mediaProductType]);
+  }, [sortBy, order, mediaProductType, dateWindow]);
 
   useEffect(() => {
     refreshStatus();
@@ -130,6 +148,29 @@ function App() {
         onConnect={() => (window.location.href = instagramOAuthStartUrl())}
         onSync={handleSync}
       />
+
+      <div style={{ margin: "4px 0 16px" }}>
+        <button
+          onClick={() => setShowTraffic((v) => !v)}
+          style={{
+            background: "transparent",
+            color: "var(--text-secondary)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            padding: "6px 14px",
+            fontSize: 13,
+            cursor: "pointer",
+          }}
+        >
+          {showTraffic ? "Hide" : "Show"} website traffic correlation
+        </button>
+      </div>
+
+      {showTraffic && (
+        <div style={{ marginBottom: 20 }}>
+          <WebsiteTrafficPanel selectedDate={selectedTrafficDate} onSelectDate={setSelectedTrafficDate} />
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "8px 0 20px" }}>
         <StatTile label="Total views" value={formatNumber(totals.views)} accent="var(--series-blue)" />

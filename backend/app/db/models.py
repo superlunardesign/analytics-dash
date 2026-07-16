@@ -150,29 +150,90 @@ class SyncRun(Base):
     account: Mapped[Account] = relationship(back_populates="sync_runs")
 
 
-class WebsiteSession(Base):
-    """Stub for future website-analytics correlation (e.g. GA4 Data API).
+class WixConnection(Base):
+    """A connected Wix site, authorized via a Wix custom app install.
 
-    Not populated by anything yet -- this just reserves the shape so the
-    posts <-> website-traffic join doesn't require a schema migration
-    later. One row per (date, source, medium, campaign) bucket, matching
-    how GA4 reports traffic-acquisition data.
+    Unlike Instagram's user-delegated OAuth, Wix's app-instance model
+    means the app itself (app_id/app_secret, in env vars) mints access
+    tokens on demand via the client_credentials grant + instance_id --
+    there's no per-site access/refresh token to store, just the
+    instance_id captured from the "App Instance Installed" webhook when
+    the site owner installs the app.
     """
 
-    __tablename__ = "website_sessions"
+    __tablename__ = "wix_connections"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    site_id: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    instance_id: Mapped[str] = mapped_column(String, nullable=False)
+    site_display_name: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    sync_runs: Mapped[list["WixSyncRun"]] = relationship(back_populates="connection", cascade="all, delete-orphan")
+
+
+class WixSyncRun(Base):
+    """Audit log of each Wix analytics sync run, mirroring SyncRun for
+    Instagram but kept separate since it tracks a WixConnection, not an
+    Account -- Wix's site analytics aren't tied to the social-account
+    schema at all."""
+
+    __tablename__ = "wix_sync_runs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    connection_id: Mapped[str] = mapped_column(String, ForeignKey("wix_connections.id"), nullable=False)
+    status: Mapped[SyncStatus] = mapped_column(Enum(SyncStatus), default=SyncStatus.RUNNING)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rows_synced: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    connection: Mapped[WixConnection] = relationship(back_populates="sync_runs")
+
+
+class WebsiteDailyTraffic(Base):
+    """One row per (date, page path) from Wix's `traffic` semantic model.
+
+    Kept at page-path granularity (not just a daily total) so "top pages
+    visited" is a simple GROUP BY over this table, and the line-chart
+    total for a day is SUM(sessions) across that day's rows.
+    """
+
+    __tablename__ = "website_daily_traffic"
+    __table_args__ = (UniqueConstraint("connection_id", "date", "page_path", name="uq_traffic_connection_date_page"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    connection_id: Mapped[str] = mapped_column(String, ForeignKey("wix_connections.id"), nullable=False)
     date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    source: Mapped[str | None] = mapped_column(String, nullable=True)
-    medium: Mapped[str | None] = mapped_column(String, nullable=True)
-    campaign: Mapped[str | None] = mapped_column(String, nullable=True)
-    landing_page: Mapped[str | None] = mapped_column(String, nullable=True)
+    page_path: Mapped[str | None] = mapped_column(String, nullable=True)
 
     sessions: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    conversions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    views: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    visitors: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    # Optional explicit link when a UTM tag encodes which post drove the traffic.
-    linked_post_id: Mapped[str | None] = mapped_column(String, ForeignKey("posts.id"), nullable=True)
+    raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class WebsiteFormSubmission(Base):
+    """One row per Wix form submission (e.g. a project application),
+    from the `forms-actions` semantic model. Individual-submission
+    granularity (not just a daily count) so submitter identity is
+    available, matching what the creator's manual spreadsheet already
+    captures."""
+
+    __tablename__ = "website_form_submissions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    connection_id: Mapped[str] = mapped_column(String, ForeignKey("wix_connections.id"), nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    form_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    contact_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String, nullable=True)
 
     raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

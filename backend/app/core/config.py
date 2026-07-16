@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     # Sync behavior
     instagram_sync_lookback_days: int = 3650
 
+    # Wix custom app (Site Analytics + Forms correlation)
+    # Create at https://manage.wix.com/account/custom-apps
+    wix_app_id: str = ""
+    wix_app_secret: str = ""
+    # The public key shown on the app's Webhooks page, used to verify
+    # that incoming webhook JWTs actually came from Wix.
+    wix_webhook_public_key: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:
