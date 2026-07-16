@@ -50,8 +50,12 @@ def _check_no_concurrent_run(db: Session, connection: WixConnection) -> None:
 # First-ever sync for a connection backfills this far; every run after
 # that just re-fetches a rolling recent window (below) since Wix's
 # historical numbers don't otherwise change and there's no point paying
-# for a full re-query every time.
-FULL_BACKFILL_DAYS = 400
+# for a full re-query every time. 1000 days covers the earliest data
+# confirmed live on the reference site (traffic starts ~Jan 2024, nothing
+# in 2023) with margin; Wix itself is the real limit here, not this
+# number -- widening past what Wix actually retains just fetches empty
+# pages.
+FULL_BACKFILL_DAYS = 1000
 
 # Recent days settle over time (Wix's own numbers can shift for a day or
 # two after it happens), so every sync re-fetches and overwrites this

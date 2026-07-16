@@ -199,13 +199,17 @@ Callback URL at the tunnel's address while developing.
   `traffic`/`forms-actions` model IDs.
 - **Sync only re-processes a rolling 60-day window** after the first
   connection (`ROLLING_REFRESH_DAYS` in `wix_sync.py`); the one-time initial
-  connection backfills 400 days (`FULL_BACKFILL_DAYS`). If a query/filter
-  change needs to correct data older than 60 days -- e.g. a stricter filter
-  that should purge rows a past bug over-synced -- a normal sync's
-  delete-then-reinsert never reaches that far back, so the bad rows just
-  sit there. Use "Force full resync" in the traffic panel (or
-  `POST /api/wix/sync?full=true`) to re-run the full 400-day window and
-  actually clean it up. This takes longer than a normal sync.
+  connection backfills 1000 days (`FULL_BACKFILL_DAYS` -- covers the earliest
+  data confirmed on the reference site; check your own site's actual history
+  via `GET /analytics/semantic-model/v3/semantic-models/query-data` if
+  you need to adjust it, since Wix's own retention is the real limit, not
+  this number). If a query/filter change needs to correct data older than
+  60 days -- e.g. a stricter filter that should purge rows a past bug
+  over-synced -- a normal sync's delete-then-reinsert never reaches that
+  far back, so the bad rows just sit there. Use "Force full resync" in the
+  traffic panel (or `POST /api/wix/sync?full=true`) to re-run the full
+  backfill window and actually clean it up. This takes longer than a
+  normal sync.
 - Wix's install model has no refresh token to rotate -- the backend mints a
   new short-lived (4h) access token on every sync run using just
   `WIX_APP_ID`/`WIX_APP_SECRET`/the stored `instance_id`.
