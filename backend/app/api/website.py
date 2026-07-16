@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.db.models import WebsiteDailyTraffic, WebsiteFormSubmission, WixConnection
+from app.db.models import WebsiteDailyTraffic, WebsiteFormSubmission, WixConnection, WixFormSchema
 from app.db.session import get_db
-from app.schemas.website import DailyTrafficOut, FormSubmissionOut, TopPageOut
+from app.schemas.website import DailyTrafficOut, FormSchemaOut, FormSubmissionOut, TopPageOut
 
 router = APIRouter(prefix="/api/website", tags=["website"])
 
@@ -139,3 +139,14 @@ def form_names(db: Session = Depends(get_db)) -> list[str]:
         .all()
     )
     return sorted({name for (name,) in rows if name})
+
+
+@router.get("/form-schema", response_model=list[FormSchemaOut])
+def form_schemas(db: Session = Depends(get_db)) -> list[FormSchemaOut]:
+    """Every synced form's question labels/types/options, keyed by
+    form_id -- pairs with a submission's raw `fields` map (keyed by the
+    cryptic field target, e.g. "how_d_you_hear_of_us") so the frontend can
+    show the real question text instead of the raw key."""
+    connection = _current_connection(db)
+    rows = db.query(WixFormSchema).filter(WixFormSchema.connection_id == connection.id).all()
+    return [FormSchemaOut.model_validate(row) for row in rows]

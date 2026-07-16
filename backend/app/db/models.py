@@ -230,34 +230,52 @@ class WebsiteDailyTraffic(Base):
 
 
 class WebsiteFormSubmission(Base):
-    """One row per Wix form submission (e.g. a project application),
-    from the `forms-actions` semantic model. Individual-submission
-    granularity (not just a daily count) so submitter identity is
-    available, matching what the creator's manual spreadsheet already
-    captures.
+    """One row per Wix form submission (e.g. a project application).
 
-    The unique constraint exists because Wix's forms-actions model has no
-    submission-ID field to key off of, and the rolling-refresh sync's
-    delete-then-reinsert can miss deleting the boundary day's rows for the
-    same reason it did on WebsiteDailyTraffic (see wix_sync.py) -- without
-    a constraint, that silently re-inserted the same real submission on
-    every cron cycle instead of crashing, so a single submission could
-    balloon into a dozen+ duplicate rows over a few days.
+    Populated from Wix's Form Submission API (not the forms-actions
+    semantic model this used originally) -- that API only ever returns
+    real completed submissions with a genuine unique ID, no page-view/
+    started noise to filter and no day-bucketing ambiguity to dedupe
+    around, unlike the analytics model. `wix_submission_id` is that real
+    ID, used as the upsert key; `fields` is the raw per-question answers
+    keyed by Wix's field target (e.g. "how_d_you_hear_of_us"), meant to be
+    read alongside a WixFormSchema row for human-readable labels.
     """
 
     __tablename__ = "website_form_submissions"
-    __table_args__ = (
-        UniqueConstraint(
-            "connection_id", "submitted_at", "form_name", "contact_email", name="uq_form_submission_natural_key"
-        ),
-    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     connection_id: Mapped[str] = mapped_column(String, ForeignKey("wix_connections.id"), nullable=False)
+    wix_submission_id: Mapped[str | None] = mapped_column(String, nullable=True, unique=True, index=True)
+    wix_form_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     form_name: Mapped[str | None] = mapped_column(String, nullable=True)
     contact_name: Mapped[str | None] = mapped_column(String, nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Raw question-answer map from the submission, e.g.
+    # {"first_name_dfaf": "Rimma", "how_d_you_hear_of_us": ["Tiktok"]}.
+    fields: Mapped[dict] = mapped_column(JSON, default=dict)
 
     raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class WixFormSchema(Base):
+    """Cached field-label schema for one Wix form (from the Form Schema
+    API), refreshed on every sync. Submission answers are keyed by a
+    cryptic field target (e.g. "how_d_you_hear_of_us"); this is what maps
+    that back to the actual question text ("How'd you hear of us?") and,
+    for choice fields, the option labels -- so the detail drawer can show
+    real questions instead of raw field keys."""
+
+    __tablename__ = "wix_form_schemas"
+    __table_args__ = (UniqueConstraint("connection_id", "form_id", name="uq_form_schema_connection_form"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    connection_id: Mapped[str] = mapped_column(String, ForeignKey("wix_connections.id"), nullable=False)
+    form_id: Mapped[str] = mapped_column(String, nullable=False)
+    form_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    # List of {target, label, field_type, options: [{label, value}]}.
+    fields: Mapped[list] = mapped_column(JSON, default=list)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

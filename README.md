@@ -69,9 +69,12 @@ result purely via a webhook.
    and create a new app.
 2. Under **Permissions**, add:
    - **Read Site Analytics** (`SCOPE.DC-ANALYTICS-AND-REPORTS.READ-SITE-ANALYTICS`)
-   - Whatever forms-related read permission the app dashboard surfaces when
-     you search "forms" (needed for the `forms-actions` analytics model --
-     the project-application data).
+     -- traffic/sessions data.
+   - **`WIX_FORMS.SUBMISSION_READ_ANY`** and **`WIX_FORMS.FORM_SCHEMA_READ`**
+     (search "forms" in the permissions picker) -- needed for the actual
+     form submission answers (first name, custom question responses, etc.)
+     and each form's question labels. Without these, form syncing fails
+     with a 403 in the sync run's error message.
 3. Under **OAuth**, note the **App ID** and **App Secret** -- these become
    `WIX_APP_ID` / `WIX_APP_SECRET`.
 4. Under **Webhooks**, add a webhook:
@@ -183,15 +186,22 @@ Callback URL at the tunnel's address while developing.
 - **Sessions, views, unique visitors, per-page breakdown**: from the
   `traffic` semantic model, bucketed daily. This is what feeds the traffic
   chart and the top-pages list.
-- **Form submissions** (e.g. project applications), with submitter name and
-  email: from the `forms-actions` semantic model, filtered to
-  `form_action_type = submissions` so only completed submissions sync (the
-  model also logs page views and started-but-abandoned attempts as separate
-  rows). Wix returns every form on the site together, so the dashboard shows
-  a toggle for which form(s) count as "Applications" -- each gets its own
-  color-coded line on the "Applications by form" chart. Pick from
-  `GET /api/website/form-names` once some submissions have synced.
-- Both models' field names were confirmed live against a real Wix Studio
+- **Form submissions** (e.g. project applications), with every question's
+  actual answer (first name, custom checkbox/dropdown responses, etc.):
+  from Wix's Form Submission + Form Schema APIs
+  (`backend/app/integrations/wix/forms_client.py`), not the analytics
+  semantic model -- that API only ever returns real completed submissions
+  with a genuine permanent ID and the full raw answer set, so there's no
+  page-view/bot noise to filter and no timezone-boundary dedup concern
+  the way the semantic-model-based traffic sync has. Clicking a row in
+  "Recent applications" opens a detail drawer (like the Instagram post
+  drawer) showing every answered question with its real label, pulled
+  from `GET /api/website/form-schema`. Wix returns every form on the site
+  together, so the dashboard shows a toggle for which form(s) count as
+  "Applications" -- each gets its own color-coded line on the combined
+  traffic/forms chart. Pick from `GET /api/website/form-names` once some
+  submissions have synced.
+- All three APIs' field names were confirmed live against a real Wix Studio
   site, but Wix doesn't publicly document the full field list the way Meta
   does -- if a sync starts failing, check
   `backend/app/integrations/wix/client.py`'s field lists against

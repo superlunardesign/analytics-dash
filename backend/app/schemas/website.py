@@ -31,7 +31,29 @@ class TopPageOut(BaseModel):
 class FormSubmissionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    id: str
+    wix_form_id: str | None
     submitted_at: datetime
     form_name: str | None
     contact_name: str | None
     contact_email: str | None
+    status: str | None
+    # Raw question-answer map keyed by Wix's field target (e.g.
+    # "how_d_you_hear_of_us") -- pair with GET /api/website/form-schema
+    # for human-readable question labels.
+    fields: dict = {}
+
+
+class FormSchemaFieldOut(BaseModel):
+    target: str
+    label: str
+    field_type: str
+    options: list[dict] = []
+
+
+class FormSchemaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    form_id: str
+    form_name: str | None
+    fields: list[FormSchemaFieldOut] = []

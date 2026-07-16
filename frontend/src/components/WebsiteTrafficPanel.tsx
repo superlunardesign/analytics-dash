@@ -2,16 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getDailyTraffic,
   getFormNames,
+  getFormSchemas,
   getFormSubmissions,
   getTopPages,
   getWixStatus,
   triggerWixSync,
   wixInstallUrl,
 } from "../api";
-import type { DailyTraffic, FormSubmission, TopPage, WixStatus, WixSyncRun } from "../types";
+import type { DailyTraffic, FormSchema, FormSubmission, TopPage, WixStatus, WixSyncRun } from "../types";
 import { formatDateTime, formatNumber } from "../format";
 import { StatTile } from "./StatTile";
 import { LineChart } from "./LineChart";
+import { SubmissionDetailDrawer } from "./SubmissionDetailDrawer";
 
 type RangePreset = 7 | 30 | 90 | 365 | "all";
 
@@ -80,6 +82,8 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
   const [topPages, setTopPages] = useState<TopPage[]>([]);
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [formNames, setFormNames] = useState<string[]>([]);
+  const [formSchemas, setFormSchemas] = useState<FormSchema[]>([]);
+  const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null);
   const [selectedForms, setSelectedForms] = useState<Set<string> | null>(null);
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(
     () => new Set(METRIC_CONFIG.map((m) => m.key))
@@ -113,16 +117,18 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
     if (!status?.connected) return;
     setDataLoading(true);
     try {
-      const [dailyRes, pagesRes, subsRes, namesRes] = await Promise.all([
+      const [dailyRes, pagesRes, subsRes, namesRes, schemasRes] = await Promise.all([
         getDailyTraffic(range.start, range.end),
         getTopPages(range.start, range.end, 8),
         getFormSubmissions(range.start, range.end),
         getFormNames(),
+        getFormSchemas(),
       ]);
       setDaily(dailyRes);
       setTopPages(pagesRes);
       setSubmissions(subsRes);
       setFormNames(namesRes);
+      setFormSchemas(schemasRes);
     } finally {
       setDataLoading(false);
     }
@@ -542,8 +548,12 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
           <h3 style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>Recent applications</h3>
           <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
             <tbody>
-              {recentSubmissions.slice(0, 8).map((s, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid var(--gridline)" }}>
+              {recentSubmissions.slice(0, 8).map((s) => (
+                <tr
+                  key={s.id}
+                  onClick={() => setSelectedSubmission(s)}
+                  style={{ borderBottom: "1px solid var(--gridline)", cursor: "pointer" }}
+                >
                   <td style={{ padding: "6px 0", color: "var(--text-primary)" }}>
                     {s.contact_name || s.contact_email || "Unknown"}
                     {s.form_name && (
@@ -576,6 +586,13 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
           </table>
         </div>
       </div>
+
+      <SubmissionDetailDrawer
+        submission={selectedSubmission}
+        schema={formSchemas.find((s) => s.form_id === selectedSubmission?.wix_form_id) ?? null}
+        loading={false}
+        onClose={() => setSelectedSubmission(null)}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type {
   AccountStatus,
   DailyTraffic,
+  FormSchema,
   FormSubmission,
   PostDetail,
   PostListResponse,
@@ -105,4 +106,8 @@ export function getFormSubmissions(start: string, end: string): Promise<FormSubm
 
 export function getFormNames(): Promise<string[]> {
   return request("/api/website/form-names");
+}
+
+export function getFormSchemas(): Promise<FormSchema[]> {
+  return request("/api/website/form-schema");
 }

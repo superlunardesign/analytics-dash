@@ -12,10 +12,12 @@ from app.db.models import (
     WebsiteDailyTraffic,
     WebsiteFormSubmission,
     WixConnection,
+    WixFormSchema,
     WixSyncRun,
 )
 from app.integrations.wix import oauth as wix_oauth
-from app.integrations.wix.client import FORMS_MODEL_ID, TRAFFIC_MODEL_ID, WixAnalyticsClient, WixAPIError, cell_value
+from app.integrations.wix.client import TRAFFIC_MODEL_ID, WixAnalyticsClient, WixAPIError, cell_value
+from app.integrations.wix.forms_client import WixFormsClient, extract_question_fields
 
 logger = logging.getLogger(__name__)
 
@@ -73,43 +75,50 @@ TRAFFIC_FIELDS = [
 # via a filter the same way a dimension would be, per the model schema.
 TRAFFIC_FILTERS = [{"field": "timeframeGranularity", "condition": "EQUAL", "values": ["DAY"]}]
 
-FORMS_FIELDS = [
-    "forms_actions.created_date",
-    "forms_actions.form_name",
-    "contacts.full_name",
-    "contacts.email",
-]
-# The forms-actions model logs every interaction with a form -- page views,
-# started-but-abandoned attempts, and actual completed submissions -- all as
-# separate rows sharing the same dimensions. Without this filter we were
-# counting page views as "submissions" (confirmed live: ~150 rows/week, of
-# which ~80% were form_action_type "views"). Only "submissions" is a real
-# completed submission; "submissions_contact" was observed firing 1:1
-# alongside "submissions" for the same event, so including it would double-count.
-FORMS_FILTERS = [{"field": "forms_actions.form_action_type", "condition": "EQUAL", "values": ["submissions"]}]
-
-
 def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
-def _upsert_form_rows(db: Session, rows: list[dict]) -> None:
-    """Same rationale as _upsert_traffic_rows: the delete-then-reinsert
-    below is best-effort, and a re-fetched row that wasn't actually deleted
-    should update in place, not accumulate as a duplicate -- see the
-    uq_form_submission_natural_key migration for why this table needed a
-    constraint added after the fact."""
+def _find_target_by_field_type(schema_fields: list[dict], field_type: str) -> str | None:
+    for f in schema_fields:
+        if f["field_type"] == field_type:
+            return f["target"]
+    return None
+
+
+def _upsert_form_schema(db: Session, connection_id: str, form_id: str, form_name: str | None, fields: list[dict]) -> None:
+    table = WixFormSchema.__table__
+    dialect = db.get_bind().dialect.name
+    insert_fn = pg_insert if dialect == "postgresql" else sqlite_insert
+    stmt = insert_fn(table).values(
+        [
+            {
+                "connection_id": connection_id,
+                "form_id": form_id,
+                "form_name": form_name,
+                "fields": fields,
+                "synced_at": datetime.now(timezone.utc),
+            }
+        ]
+    )
+    update_cols = {col: stmt.excluded[col] for col in ("form_name", "fields", "synced_at")}
+    stmt = stmt.on_conflict_do_update(index_elements=["connection_id", "form_id"], set_=update_cols)
+    db.execute(stmt)
+
+
+def _upsert_form_submissions(db: Session, rows: list[dict]) -> None:
+    """Unlike the old forms-actions-semantic-model sync, Wix's Form
+    Submission API gives every submission a real, permanent ID -- upsert
+    keys off that directly instead of a guessed composite natural key, so
+    there's no boundary-day/timezone ambiguity to worry about at all."""
     if not rows:
         return
     table = WebsiteFormSubmission.__table__
     dialect = db.get_bind().dialect.name
     insert_fn = pg_insert if dialect == "postgresql" else sqlite_insert
     stmt = insert_fn(table).values(rows)
-    update_cols = {col: stmt.excluded[col] for col in ("contact_name", "raw_payload")}
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["connection_id", "submitted_at", "form_name", "contact_email"],
-        set_=update_cols,
-    )
+    update_cols = {col: stmt.excluded[col] for col in ("contact_name", "contact_email", "status", "fields", "raw_payload")}
+    stmt = stmt.on_conflict_do_update(index_elements=["wix_submission_id"], set_=update_cols)
     db.execute(stmt)
 
 
@@ -159,6 +168,7 @@ def sync_wix_connection(db: Session, connection: WixConnection, force_full_backf
     try:
         token = wix_oauth.create_access_token(connection.instance_id)
         client = WixAnalyticsClient(access_token=token.access_token)
+        forms_client = WixFormsClient(access_token=token.access_token)
         site_timezone = client.get_site_timezone()
 
         is_first_sync = (
@@ -229,57 +239,66 @@ def sync_wix_connection(db: Session, connection: WixConnection, force_full_backf
         _upsert_traffic_rows(db, traffic_values)
         db.commit()
 
-        # -- Form submissions (individual rows, for applicant identity) --
-        form_rows = client.iter_model_rows(
-            FORMS_MODEL_ID,
-            FORMS_FIELDS,
-            _iso(start),
-            _iso(end),
-            site_timezone,
-            filters=FORMS_FILTERS,
-            sort_field="forms_actions.created_date",
-        )
-        db.query(WebsiteFormSubmission).filter(
-            WebsiteFormSubmission.connection_id == connection.id,
-            WebsiteFormSubmission.submitted_at >= start,
-        ).delete()
-        seen_form_keys: set[tuple[str, str | None, str | None]] = set()
-        duplicate_form_rows = 0
-        form_values: list[dict] = []
-        for row in form_rows:
-            fields = row.get("fields", {})
-            date_str = cell_value(fields.get("forms_actions.created_date"))
-            if not date_str:
+        # -- Forms: schema (question labels) + full submission answers,
+        # via the Form Submission API. Unlike the old forms-actions
+        # semantic-model source, this only ever returns real completed
+        # submissions (no views/started noise, no form_action_type
+        # filtering needed) and gives each one a real permanent ID, so
+        # there's no rolling window or boundary-day dedupe concern here --
+        # every sync just fetches the complete current set for every form.
+        forms = forms_client.iter_forms()
+        submission_values: list[dict] = []
+        seen_submission_ids: set[str] = set()
+        for form in forms:
+            form_id = form.get("id")
+            if not form_id:
                 continue
-            form_name = cell_value(fields.get("forms_actions.form_name"))
-            contact_email = cell_value(fields.get("contacts.email"))
-            # (connection, submitted_at, form_name, contact_email) is the
-            # table's unique constraint -- dedupe in-batch too, same as
-            # traffic, since Postgres rejects ON CONFLICT hitting the same
-            # row twice within one statement.
-            key = (date_str, form_name, contact_email)
-            if key in seen_form_keys:
-                duplicate_form_rows += 1
-                continue
-            seen_form_keys.add(key)
-            form_values.append(
-                {
-                    "connection_id": connection.id,
-                    "submitted_at": datetime.fromisoformat(date_str.replace("Z", "+00:00")),
-                    "form_name": form_name,
-                    "contact_name": cell_value(fields.get("contacts.full_name")),
-                    "contact_email": contact_email,
-                    "raw_payload": row,
-                }
-            )
-            rows_synced += 1
-        if duplicate_form_rows:
-            logger.warning(
-                "Wix forms sync for connection %s skipped %d duplicate submission rows",
-                connection.id,
-                duplicate_form_rows,
-            )
-        _upsert_form_rows(db, form_values)
+            form_name = form.get("name") or form.get("properties", {}).get("name")
+            full_form = forms_client.get_form(form_id)
+            schema_fields = extract_question_fields(full_form)
+            _upsert_form_schema(db, connection.id, form_id, form_name, schema_fields)
+
+            first_name_target = _find_target_by_field_type(schema_fields, "CONTACTS_FIRST_NAME")
+            last_name_target = _find_target_by_field_type(schema_fields, "CONTACTS_LAST_NAME")
+            email_target = _find_target_by_field_type(schema_fields, "CONTACTS_EMAIL")
+
+            for submission in forms_client.iter_submissions(form_id):
+                wix_submission_id = submission.get("id")
+                created_date = submission.get("createdDate")
+                if not wix_submission_id or not created_date or wix_submission_id in seen_submission_ids:
+                    continue
+                seen_submission_ids.add(wix_submission_id)
+                answers = submission.get("submissions", {}) or {}
+                first = answers.get(first_name_target) if first_name_target else None
+                last = answers.get(last_name_target) if last_name_target else None
+                contact_name = " ".join(p for p in (first, last) if p) or None
+                submission_values.append(
+                    {
+                        "connection_id": connection.id,
+                        "wix_submission_id": wix_submission_id,
+                        "wix_form_id": form_id,
+                        "submitted_at": datetime.fromisoformat(created_date.replace("Z", "+00:00")),
+                        "form_name": form_name,
+                        "contact_name": contact_name,
+                        "contact_email": answers.get(email_target) if email_target else None,
+                        "status": submission.get("status"),
+                        "fields": answers,
+                        "raw_payload": submission,
+                    }
+                )
+                rows_synced += 1
+        db.commit()
+
+        _upsert_form_submissions(db, submission_values)
+        if forms:
+            # Full reconciliation: since every form's complete current
+            # submission set was just fetched, anything previously synced
+            # that didn't come back this time was deleted on Wix's side.
+            db.query(WebsiteFormSubmission).filter(
+                WebsiteFormSubmission.connection_id == connection.id,
+                WebsiteFormSubmission.wix_submission_id.isnot(None),
+                ~WebsiteFormSubmission.wix_submission_id.in_(seen_submission_ids),
+            ).delete(synchronize_session=False)
         db.commit()
 
         run.status = SyncStatus.SUCCESS

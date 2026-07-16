@@ -90,10 +90,29 @@ export interface TopPage {
 }
 
 export interface FormSubmission {
+  id: string;
+  wix_form_id: string | null;
   submitted_at: string;
   form_name: string | null;
   contact_name: string | null;
   contact_email: string | null;
+  status: string | null;
+  // Raw question-answer map keyed by Wix's field target (e.g.
+  // "how_d_you_hear_of_us") -- pair with FormSchema for readable labels.
+  fields: Record<string, unknown>;
+}
+
+export interface FormSchemaField {
+  target: string;
+  label: string;
+  field_type: string;
+  options: { label: string; value: string }[];
+}
+
+export interface FormSchema {
+  form_id: string;
+  form_name: string | null;
+  fields: FormSchemaField[];
 }
 
 export type SortField =
