@@ -56,18 +56,24 @@ personal account.
 1. Push this repo to GitHub/GitLab and create a new **Blueprint** in Render
    pointing at it -- Render will read `render.yaml` and provision the
    database, API, cron job, and static site.
-2. After the first deploy, open the `analytics-dash-secrets` environment
-   group (Render dashboard → Env Groups) and fill in:
-   - `TOKEN_ENCRYPTION_KEY` -- generate one with
-     `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
-   - `META_APP_ID` / `META_APP_SECRET` -- from step 1.
-3. On the `analytics-dash-api` service, set:
+2. Generate an encryption key locally:
+   `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+3. On **both** the `analytics-dash-api` service and the `analytics-dash-sync`
+   cron job (Environment tab on each), set the same three values:
+   - `TOKEN_ENCRYPTION_KEY` -- the key from step 2
+   - `META_APP_ID` / `META_APP_SECRET` -- from step 1
+
+   These have to match exactly on both services, since they encrypt and
+   decrypt the same stored OAuth tokens. (Render blueprints can't predefine
+   a shared group with values you fill in after creation, so it's two
+   copy-pastes instead of one.)
+4. On the `analytics-dash-api` service, also set:
    - `INSTAGRAM_REDIRECT_URI` = `https://<api-service>.onrender.com/api/instagram/oauth/callback`
      (and add this same URL to the Meta app's Valid OAuth Redirect URIs)
    - `FRONTEND_BASE_URL` = `https://<frontend-service>.onrender.com`
-4. On the `analytics-dash-frontend` service, set:
+5. On the `analytics-dash-frontend` service, set:
    - `VITE_API_BASE_URL` = `https://<api-service>.onrender.com`
-5. Redeploy the API and frontend services so the new env vars take effect,
+6. Redeploy the API and frontend services so the new env vars take effect,
    then open the frontend URL and click **Connect Instagram**.
 
 Note: Render has no free tier for cron jobs (~$1/month minimum on the

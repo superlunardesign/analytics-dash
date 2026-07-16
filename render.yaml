@@ -4,17 +4,6 @@ databases:
     user: analytics_dash
     plan: free
 
-envVarGroups:
-  # Shared across the API and the sync cron job so both encrypt/decrypt
-  # OAuth tokens with the same key and hit the same Meta app. Fill these
-  # in once in the Render dashboard after the first deploy -- see
-  # README.md for where each value comes from.
-  - name: analytics-dash-secrets
-    envVars:
-      - key: TOKEN_ENCRYPTION_KEY
-      - key: META_APP_ID
-      - key: META_APP_SECRET
-
 services:
   - type: web
     name: analytics-dash-api
@@ -22,10 +11,12 @@ services:
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
-    preDeployCommand: alembic upgrade head
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # Free-tier services don't support preDeployCommand, so the migration
+    # runs at the front of the start command instead. `alembic upgrade
+    # head` is a no-op once the schema's already current, so this is safe
+    # to run on every restart.
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
-      - fromGroup: analytics-dash-secrets
       - key: DATABASE_URL
         fromDatabase:
           name: analytics-dash-db
@@ -36,6 +27,17 @@ services:
         value: production
       - key: META_GRAPH_API_VERSION
         value: v22.0
+      # Fill these in on the Render dashboard after creation (Environment
+      # tab) -- see README.md for where each value comes from. The same
+      # three values need to be set again on analytics-dash-sync below,
+      # since Render doesn't let a blueprint-defined env var group hold
+      # values you fill in later.
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
       # Set these after the API and frontend are deployed once, so you
       # have their real *.onrender.com URLs to fill in.
       - key: INSTAGRAM_REDIRECT_URI
@@ -52,13 +54,20 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python sync_cron.py
     envVars:
-      - fromGroup: analytics-dash-secrets
       - key: DATABASE_URL
         fromDatabase:
           name: analytics-dash-db
           property: connectionString
       - key: META_GRAPH_API_VERSION
         value: v22.0
+      # Must match the values set on analytics-dash-api exactly -- both
+      # services encrypt/decrypt the same stored OAuth tokens.
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
 
   - type: web
     name: analytics-dash-frontend
