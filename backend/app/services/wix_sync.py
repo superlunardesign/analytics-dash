@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.db.models import (
@@ -87,6 +89,35 @@ def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
+def _upsert_traffic_rows(db: Session, rows: list[dict]) -> None:
+    """INSERT ... ON CONFLICT DO UPDATE on (connection_id, date, page_path),
+    instead of a plain bulk INSERT.
+
+    The delete-then-reinsert below is a best-effort cleanup for rows that
+    no longer appear in this run's fetch, but it isn't a reliable guarantee
+    that no (date, page_path) already in the table will be re-fetched --
+    e.g. Wix buckets rows by calendar day in the *site's* timezone, while
+    the delete filter compares against a precise UTC instant, so the
+    earliest day in a rolling refresh window can be returned by Wix's fetch
+    (day-level rounding) without having been deleted (precise-instant
+    compare), and a resulting insert of the exact same (date, page_path)
+    then hits the unique constraint. Upserting makes that scenario a no-op
+    correction instead of a crash, regardless of the exact cause.
+    """
+    if not rows:
+        return
+    table = WebsiteDailyTraffic.__table__
+    dialect = db.get_bind().dialect.name
+    insert_fn = pg_insert if dialect == "postgresql" else sqlite_insert
+    stmt = insert_fn(table).values(rows)
+    update_cols = {col: stmt.excluded[col] for col in ("sessions", "views", "visitors", "raw_payload")}
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["connection_id", "date", "page_path"],
+        set_=update_cols,
+    )
+    db.execute(stmt)
+
+
 def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
     _check_no_concurrent_run(db, connection)
 
@@ -131,6 +162,7 @@ def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
         ).delete()
         seen_traffic_keys: set[tuple[str, str | None]] = set()
         duplicate_traffic_rows = 0
+        traffic_values: list[dict] = []
         for row in traffic_rows:
             fields = row.get("fields", {})
             date_str = cell_value(fields.get("traffic.created_timeframe"))
@@ -138,24 +170,24 @@ def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
                 continue
             page_path = cell_value(fields.get("traffic.page_url_from"))
             # (date, page_path) is the table's unique constraint -- dedupe here
-            # rather than let a duplicate crash the whole sync on commit. Even
-            # with sort_field set above, this is cheap insurance since the
-            # model's own grouping is otherwise opaque to us.
+            # too (on top of the upsert below) since a duplicate within the
+            # same batch would otherwise violate Postgres's "ON CONFLICT
+            # DO UPDATE command cannot affect row a second time" restriction.
             key = (date_str, page_path)
             if key in seen_traffic_keys:
                 duplicate_traffic_rows += 1
                 continue
             seen_traffic_keys.add(key)
-            db.add(
-                WebsiteDailyTraffic(
-                    connection_id=connection.id,
-                    date=datetime.fromisoformat(date_str.replace("Z", "+00:00")),
-                    page_path=page_path,
-                    sessions=cell_value(fields.get("traffic.sessions_count")),
-                    views=cell_value(fields.get("traffic.views_count")),
-                    visitors=cell_value(fields.get("traffic.visitors_count")),
-                    raw_payload=row,
-                )
+            traffic_values.append(
+                {
+                    "connection_id": connection.id,
+                    "date": datetime.fromisoformat(date_str.replace("Z", "+00:00")),
+                    "page_path": page_path,
+                    "sessions": cell_value(fields.get("traffic.sessions_count")),
+                    "views": cell_value(fields.get("traffic.views_count")),
+                    "visitors": cell_value(fields.get("traffic.visitors_count")),
+                    "raw_payload": row,
+                }
             )
             rows_synced += 1
         if duplicate_traffic_rows:
@@ -164,6 +196,7 @@ def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
                 connection.id,
                 duplicate_traffic_rows,
             )
+        _upsert_traffic_rows(db, traffic_values)
         db.commit()
 
         # -- Form submissions (individual rows, for applicant identity) --
