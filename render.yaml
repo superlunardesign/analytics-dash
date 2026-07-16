@@ -17,6 +17,12 @@ services:
     # to run on every restart.
     startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      # Pinned to a version with prebuilt wheels for every dependency here
+      # (pydantic-core in particular is a Rust extension and lags behind
+      # brand-new Python releases) -- without this Render's default Python
+      # tries to compile it from source and fails on the read-only build fs.
+      - key: PYTHON_VERSION
+        value: 3.12.7
       - key: DATABASE_URL
         fromDatabase:
           name: analytics-dash-db
@@ -54,6 +60,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python sync_cron.py
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
       - key: DATABASE_URL
         fromDatabase:
           name: analytics-dash-db
