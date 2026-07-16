@@ -20,6 +20,7 @@ const columns: Column[] = [
   { key: "watch_time", label: "Avg watch", sortable: true, render: (p) => formatSeconds(p.latest_metrics?.avg_watch_time_sec) },
   { key: "profile_visits", label: "Profile visits", sortable: true, render: (p) => formatNumber(p.latest_metrics?.profile_visits) },
   { key: "bio_link_taps", label: "Bio taps", sortable: true, render: (p) => formatNumber(p.latest_metrics?.bio_link_taps) },
+  { key: "follows", label: "New follows", sortable: true, render: (p) => formatNumber(p.latest_metrics?.follows) },
 ];
 
 function PostCell({ post }: { post: Post }) {

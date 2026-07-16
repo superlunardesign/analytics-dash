@@ -63,6 +63,7 @@ export type SortField =
   | "watch_time"
   | "profile_visits"
   | "bio_link_taps"
+  | "follows"
   | "likes"
   | "reach"
   | "total_interactions";
