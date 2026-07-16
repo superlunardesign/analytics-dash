@@ -9,12 +9,15 @@ https://developers.facebook.com/docs/instagram-platform/reference/instagram-medi
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 GRAPH_BASE_URL = "https://graph.instagram.com"
 
@@ -154,14 +157,16 @@ class InstagramClient:
             combined.extend(resp.get("data", []))
         except InstagramRateLimitError:
             raise
-        except InstagramAPIError:
+        except InstagramAPIError as exc:
+            logger.warning("Core metrics batch failed for media %s (%s), retrying individually: %s", media_id, media_product_type, exc)
             for metric in core_metrics:
                 try:
                     resp = self._get(f"{media_id}/insights", {"metric": metric})
                     combined.extend(resp.get("data", []))
                 except InstagramRateLimitError:
                     raise
-                except InstagramAPIError:
+                except InstagramAPIError as metric_exc:
+                    logger.warning("Metric '%s' unavailable for media %s: %s", metric, media_id, metric_exc)
                     continue
 
         if media_product_type != "STORY":
@@ -174,8 +179,8 @@ class InstagramClient:
                 combined.extend(profile_activity.get("data", []))
             except InstagramRateLimitError:
                 raise
-            except InstagramAPIError:
-                pass
+            except InstagramAPIError as exc:
+                logger.warning("profile_activity unavailable for media %s (%s): %s", media_id, media_product_type, exc)
 
             for metric in _OPTIONAL_METRICS:
                 try:
@@ -183,7 +188,8 @@ class InstagramClient:
                     combined.extend(resp.get("data", []))
                 except InstagramRateLimitError:
                     raise
-                except InstagramAPIError:
+                except InstagramAPIError as exc:
+                    logger.warning("Metric '%s' unavailable for media %s: %s", metric, media_id, exc)
                     continue
 
         return {"data": combined}
