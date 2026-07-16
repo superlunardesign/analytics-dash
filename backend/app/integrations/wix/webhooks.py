@@ -20,7 +20,15 @@ import jwt
 
 from app.core.config import get_settings
 
-APP_INSTANCE_INSTALLED_EVENT = "wix.app_management.app_instance.installed"
+# Confirmed from a real production webhook delivery's logged raw envelope
+# -- the actual string Wix sends is this simple "AppInstalled", nothing
+# like the dotted/namespaced form used for other event types (e.g.
+# "wix.ecom.v1.order_canceled" in Wix's own docs example). The earlier
+# value here was never confirmed against official docs (both Meta's and
+# Wix's blocked direct fetches at different points), only inferred from a
+# summarized web search, and was simply wrong -- every install was
+# actually being delivered successfully and silently ignored.
+APP_INSTANCE_INSTALLED_EVENT = "AppInstalled"
 
 
 class WixWebhookVerificationError(RuntimeError):
