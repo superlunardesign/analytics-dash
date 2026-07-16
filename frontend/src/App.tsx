@@ -212,6 +212,17 @@ function App() {
           </select>
         </label>
         {postsLoading && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Loading…</span>}
+        {selectedTrafficDate && (
+          <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+            Filtered to posts within 3 days of {selectedTrafficDate.slice(0, 10)}.{" "}
+            <button
+              onClick={() => setSelectedTrafficDate(null)}
+              style={{ background: "none", border: "none", color: "var(--series-blue)", cursor: "pointer", padding: 0, fontSize: 13 }}
+            >
+              Clear
+            </button>
+          </span>
+        )}
       </div>
 
       <PostsTable posts={posts} sortBy={sortBy} order={order} onSort={handleSort} onSelect={handleSelectPost} />

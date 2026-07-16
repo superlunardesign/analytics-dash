@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.models import WebsiteDailyTraffic, WebsiteFormSubmission, WixConnection
 from app.db.session import get_db
 from app.schemas.website import DailyTrafficOut, FormSubmissionOut, TopPageOut
@@ -19,6 +20,17 @@ def _current_connection(db: Session) -> WixConnection:
     if connection is None:
         raise HTTPException(status_code=400, detail="No Wix site connected yet")
     return connection
+
+
+def _application_form_filter(query):
+    # Wix's forms-actions model returns every form on the site, not just
+    # one -- without this, "Applications" silently counts newsletter
+    # signups, contact forms, etc. alongside actual project applications.
+    # See WIX_APPLICATION_FORM_NAME in config.py.
+    form_name = get_settings().wix_application_form_name
+    if form_name:
+        query = query.filter(func.lower(WebsiteFormSubmission.form_name) == form_name.lower())
+    return query
 
 
 @router.get("/daily", response_model=list[DailyTrafficOut])
@@ -48,15 +60,12 @@ def daily_traffic(
         .all()
     )
 
-    submissions = (
-        db.query(WebsiteFormSubmission.submitted_at)
-        .filter(
-            WebsiteFormSubmission.connection_id == connection.id,
-            WebsiteFormSubmission.submitted_at >= start,
-            WebsiteFormSubmission.submitted_at <= end,
-        )
-        .all()
+    submissions_query = db.query(WebsiteFormSubmission.submitted_at).filter(
+        WebsiteFormSubmission.connection_id == connection.id,
+        WebsiteFormSubmission.submitted_at >= start,
+        WebsiteFormSubmission.submitted_at <= end,
     )
+    submissions = _application_form_filter(submissions_query).all()
     submissions_by_date: dict[str, int] = defaultdict(int)
     for (submitted_at,) in submissions:
         submissions_by_date[submitted_at.date().isoformat()] += 1
@@ -109,14 +118,25 @@ def form_submissions(
 ) -> list[FormSubmissionOut]:
     connection = _current_connection(db)
 
+    query = db.query(WebsiteFormSubmission).filter(
+        WebsiteFormSubmission.connection_id == connection.id,
+        WebsiteFormSubmission.submitted_at >= start,
+        WebsiteFormSubmission.submitted_at <= end,
+    )
+    rows = _application_form_filter(query).order_by(WebsiteFormSubmission.submitted_at.desc()).all()
+    return [FormSubmissionOut.model_validate(row) for row in rows]
+
+
+@router.get("/form-names")
+def form_names(db: Session = Depends(get_db)) -> list[str]:
+    """Distinct form_name values seen across all synced submissions --
+    lets you find the exact string to set WIX_APPLICATION_FORM_NAME to,
+    since Wix's forms-actions model doesn't filter by form for us."""
+    connection = _current_connection(db)
     rows = (
-        db.query(WebsiteFormSubmission)
-        .filter(
-            WebsiteFormSubmission.connection_id == connection.id,
-            WebsiteFormSubmission.submitted_at >= start,
-            WebsiteFormSubmission.submitted_at <= end,
-        )
-        .order_by(WebsiteFormSubmission.submitted_at.desc())
+        db.query(WebsiteFormSubmission.form_name)
+        .filter(WebsiteFormSubmission.connection_id == connection.id)
+        .distinct()
         .all()
     )
-    return [FormSubmissionOut.model_validate(row) for row in rows]
+    return sorted({name for (name,) in rows if name})

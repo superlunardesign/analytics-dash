@@ -60,6 +60,12 @@ services:
         sync: false
       - key: WIX_WEBHOOK_PUBLIC_KEY
         sync: false
+      # Optional -- narrows the "Applications" stat/list to one specific
+      # Wix form (by exact name) instead of counting every form submission
+      # on the site. See README.md. Find the exact name via GET
+      # /api/website/form-names once some submissions have synced.
+      - key: WIX_APPLICATION_FORM_NAME
+        sync: false
 
   - type: cron
     name: analytics-dash-sync

@@ -271,7 +271,12 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
             <tbody>
               {submissions.slice(0, 8).map((s, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid var(--gridline)" }}>
-                  <td style={{ padding: "6px 0", color: "var(--text-primary)" }}>{s.contact_name || s.contact_email || "Unknown"}</td>
+                  <td style={{ padding: "6px 0", color: "var(--text-primary)" }}>
+                    {s.contact_name || s.contact_email || "Unknown"}
+                    {s.form_name && (
+                      <div style={{ color: "var(--text-muted)", fontSize: 11 }}>{s.form_name}</div>
+                    )}
+                  </td>
                   <td style={{ padding: "6px 0", textAlign: "right", color: "var(--text-muted)", fontSize: 12 }}>
                     {formatDateTime(s.submitted_at)}
                   </td>

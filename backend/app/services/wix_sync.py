@@ -73,6 +73,14 @@ FORMS_FIELDS = [
     "contacts.full_name",
     "contacts.email",
 ]
+# The forms-actions model logs every interaction with a form -- page views,
+# started-but-abandoned attempts, and actual completed submissions -- all as
+# separate rows sharing the same dimensions. Without this filter we were
+# counting page views as "submissions" (confirmed live: ~150 rows/week, of
+# which ~80% were form_action_type "views"). Only "submissions" is a real
+# completed submission; "submissions_contact" was observed firing 1:1
+# alongside "submissions" for the same event, so including it would double-count.
+FORMS_FILTERS = [{"field": "forms_actions.form_action_type", "condition": "EQUAL", "values": ["submissions"]}]
 
 
 def _iso(dt: datetime) -> str:
@@ -165,6 +173,7 @@ def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
             _iso(start),
             _iso(end),
             site_timezone,
+            filters=FORMS_FILTERS,
             sort_field="forms_actions.created_date",
         )
         db.query(WebsiteFormSubmission).filter(

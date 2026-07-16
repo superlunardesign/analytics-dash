@@ -184,10 +184,15 @@ Callback URL at the tunnel's address while developing.
   `traffic` semantic model, bucketed daily. This is what feeds the traffic
   chart and the top-pages list.
 - **Form submissions** (e.g. project applications), with submitter name and
-  email: from the `forms-actions` semantic model. If you have more than one
-  form on your site, `backend/app/services/wix_sync.py` currently pulls
-  every form's submissions together -- filter by `form_name` there if you
-  only want a specific one.
+  email: from the `forms-actions` semantic model. Wix's model returns every
+  form on the site together (newsletter signups, contact forms, etc.), so
+  every submission is still synced into the database, but the dashboard's
+  "Applications" stat/list only counts one form: set `WIX_APPLICATION_FORM_NAME`
+  to its exact name to narrow it down. Leave it unset and every form counts
+  (the default, and almost certainly not what you want). To find the exact
+  name, check `GET /api/website/form-names` once some submissions have
+  synced, or look at the "Recent applications" list in the dashboard, which
+  shows each submission's form name underneath the submitter.
 - Both models' field names were confirmed live against a real Wix Studio
   site, but Wix doesn't publicly document the full field list the way Meta
   does -- if a sync starts failing, check
