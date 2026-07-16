@@ -9,7 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import sqlite
+from sqlalchemy.dialects import postgresql, sqlite
 
 revision: str = '05bf56b22ff4'
 down_revision: Union[str, None] = '831378bc8449'
@@ -60,7 +60,10 @@ def upgrade() -> None:
     op.create_table('wix_sync_runs',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('connection_id', sa.String(), nullable=False),
-    sa.Column('status', sa.Enum('RUNNING', 'SUCCESS', 'FAILED', name='syncstatus'), nullable=False),
+    # create_type=False: this enum type already exists in Postgres (created
+    # by the initial migration for sync_runs.status) -- SQLite has no real
+    # enum types so this discrepancy didn't surface in local testing.
+    sa.Column('status', postgresql.ENUM('RUNNING', 'SUCCESS', 'FAILED', name='syncstatus', create_type=False), nullable=False),
     sa.Column('started_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('finished_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('rows_synced', sa.Integer(), nullable=False),
