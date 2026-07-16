@@ -102,3 +102,7 @@ export function getFormSubmissions(start: string, end: string): Promise<FormSubm
   const search = new URLSearchParams({ start, end });
   return request(`/api/website/form-submissions?${search.toString()}`);
 }
+
+export function getFormNames(): Promise<string[]> {
+  return request("/api/website/form-names");
+}

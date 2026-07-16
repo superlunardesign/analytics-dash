@@ -13,6 +13,11 @@ class DailyTrafficOut(BaseModel):
     views: int
     visitors: int
     form_submissions: int
+    # Per-form breakdown of that day's submissions (e.g. {"Project Inquiry": 2,
+    # "Brand Vibe Workbook": 1}) -- Wix's forms-actions model returns every
+    # form on the site together, so which form(s) count as "applications" is
+    # a client-side toggle rather than a fixed server-side filter.
+    submissions_by_form: dict[str, int] = {}
 
 
 class TopPageOut(BaseModel):

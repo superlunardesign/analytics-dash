@@ -80,6 +80,7 @@ export interface DailyTraffic {
   views: number;
   visitors: number;
   form_submissions: number;
+  submissions_by_form: Record<string, number>;
 }
 
 export interface TopPage {

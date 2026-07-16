@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getDailyTraffic,
+  getFormNames,
   getFormSubmissions,
   getTopPages,
   getWixStatus,
@@ -10,21 +11,46 @@ import {
 import type { DailyTraffic, FormSubmission, TopPage, WixStatus, WixSyncRun } from "../types";
 import { formatDateTime, formatNumber } from "../format";
 import { StatTile } from "./StatTile";
-import { TrafficChart } from "./TrafficChart";
+import { LineChart } from "./LineChart";
 
-type Metric = "sessions" | "views" | "visitors";
-type RangePreset = 7 | 30 | 90;
+type RangePreset = 7 | 30 | 90 | 365 | "all";
+
+// Fixed categorical order (never cycled/reassigned by selection) -- see the
+// dataviz skill's palette.md. Forms are colored by their position in the
+// sorted master list of all known form names, not by which ones are
+// currently toggled on, so a form's color never changes as others are
+// toggled.
+const FORM_COLOR_SLOTS = [
+  "var(--series-blue)",
+  "var(--series-green)",
+  "var(--series-magenta)",
+  "var(--series-yellow)",
+  "var(--series-aqua)",
+  "var(--series-orange)",
+  "var(--series-violet)",
+  "var(--series-red)",
+];
+
+const DEFAULT_FORM_NAME = "Project Inquiry";
 
 interface WebsiteTrafficPanelProps {
   selectedDate: string | null;
   onSelectDate: (date: string | null) => void;
 }
 
-function rangeForPreset(days: RangePreset): { start: string; end: string } {
+function rangeForPreset(preset: RangePreset): { start: string; end: string } {
   const end = new Date();
   const start = new Date();
-  start.setDate(start.getDate() - days);
+  if (preset === "all") {
+    start.setDate(start.getDate() - 3 * 365);
+  } else {
+    start.setDate(start.getDate() - preset);
+  }
   return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function toDateInputValue(iso: string): string {
+  return iso.slice(0, 10);
 }
 
 export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTrafficPanelProps) {
@@ -34,11 +60,17 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
   const [lastSync, setLastSync] = useState<WixSyncRun | null>(null);
 
   const [preset, setPreset] = useState<RangePreset>(30);
-  const [metric, setMetric] = useState<Metric>("sessions");
+  const [customRange, setCustomRange] = useState<{ start: string; end: string } | null>(null);
+  const [showCustomRange, setShowCustomRange] = useState(false);
+
   const [daily, setDaily] = useState<DailyTraffic[]>([]);
   const [topPages, setTopPages] = useState<TopPage[]>([]);
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
+  const [formNames, setFormNames] = useState<string[]>([]);
+  const [selectedForms, setSelectedForms] = useState<Set<string> | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
+
+  const range = useMemo(() => customRange ?? rangeForPreset(preset), [customRange, preset]);
 
   const refreshStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -57,23 +89,39 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
     if (!status?.connected) return;
     setDataLoading(true);
     try {
-      const { start, end } = rangeForPreset(preset);
-      const [dailyRes, pagesRes, subsRes] = await Promise.all([
-        getDailyTraffic(start, end),
-        getTopPages(start, end, 8),
-        getFormSubmissions(start, end),
+      const [dailyRes, pagesRes, subsRes, namesRes] = await Promise.all([
+        getDailyTraffic(range.start, range.end),
+        getTopPages(range.start, range.end, 8),
+        getFormSubmissions(range.start, range.end),
+        getFormNames(),
       ]);
       setDaily(dailyRes);
       setTopPages(pagesRes);
       setSubmissions(subsRes);
+      setFormNames(namesRes);
     } finally {
       setDataLoading(false);
     }
-  }, [status?.connected, preset]);
+  }, [status?.connected, range.start, range.end]);
 
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  // Default to just the real project-application form once we know what
+  // forms exist; only runs once (selectedForms starts null) so a user's
+  // manual toggle choices are never overwritten by a later refresh.
+  useEffect(() => {
+    if (selectedForms !== null || formNames.length === 0) return;
+    setSelectedForms(new Set(formNames.includes(DEFAULT_FORM_NAME) ? [DEFAULT_FORM_NAME] : formNames));
+  }, [formNames, selectedForms]);
+
+  const formColor = useMemo(() => {
+    const sorted = [...formNames].sort();
+    const map = new Map<string, string>();
+    sorted.forEach((name, i) => map.set(name, FORM_COLOR_SLOTS[i % FORM_COLOR_SLOTS.length]));
+    return map;
+  }, [formNames]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -88,15 +136,46 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
     }
   };
 
+  const toggleForm = (name: string) => {
+    setSelectedForms((prev) => {
+      const next = new Set(prev ?? []);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const activeForms = selectedForms ?? new Set<string>();
+
   const totals = daily.reduce(
-    (acc, d) => ({
-      sessions: acc.sessions + d.sessions,
-      views: acc.views + d.views,
-      visitors: acc.visitors + d.visitors,
-      applications: acc.applications + d.form_submissions,
-    }),
+    (acc, d) => {
+      let applications = acc.applications;
+      for (const [form, count] of Object.entries(d.submissions_by_form)) {
+        if (activeForms.has(form)) applications += count;
+      }
+      return {
+        sessions: acc.sessions + d.sessions,
+        views: acc.views + d.views,
+        visitors: acc.visitors + d.visitors,
+        applications,
+      };
+    },
     { sessions: 0, views: 0, visitors: 0, applications: 0 }
   );
+
+  const dates = daily.map((d) => d.date);
+  const formsSeries = useMemo(
+    () =>
+      [...activeForms].map((name) => ({
+        key: name,
+        label: name,
+        color: formColor.get(name) ?? "var(--text-muted)",
+        values: daily.map((d) => d.submissions_by_form[name] ?? 0),
+      })),
+    [activeForms, daily, formColor]
+  );
+
+  const recentSubmissions = submissions.filter((s) => activeForms.has(s.form_name ?? ""));
 
   if (statusLoading) {
     return <p style={{ fontSize: 13, color: "var(--text-muted)" }}>Checking Wix connection…</p>;
@@ -175,15 +254,19 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
         </button>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 6 }}>
-          {([7, 30, 90] as RangePreset[]).map((p) => (
+      {/* Date range: presets first, custom range tucked behind a disclosure. */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {([7, 30, 90, 365] as RangePreset[]).map((p) => (
             <button
               key={p}
-              onClick={() => setPreset(p)}
+              onClick={() => {
+                setPreset(p);
+                setCustomRange(null);
+              }}
               style={{
-                background: preset === p ? "var(--series-blue)" : "transparent",
-                color: preset === p ? "#fff" : "var(--text-secondary)",
+                background: !customRange && preset === p ? "var(--series-blue)" : "transparent",
+                color: !customRange && preset === p ? "#fff" : "var(--text-secondary)",
                 border: "1px solid var(--border)",
                 borderRadius: 6,
                 padding: "4px 10px",
@@ -194,28 +277,70 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
               Last {p}d
             </button>
           ))}
+          <button
+            onClick={() => {
+              setPreset("all");
+              setCustomRange(null);
+            }}
+            style={{
+              background: !customRange && preset === "all" ? "var(--series-blue)" : "transparent",
+              color: !customRange && preset === "all" ? "#fff" : "var(--text-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              padding: "4px 10px",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            All time
+          </button>
+          <button
+            onClick={() => setShowCustomRange((v) => !v)}
+            style={{
+              background: customRange ? "var(--series-blue)" : "transparent",
+              color: customRange ? "#fff" : "var(--text-muted)",
+              border: "none",
+              borderBottom: "1px dashed var(--border)",
+              padding: "4px 6px",
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            Custom range…
+          </button>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {(["sessions", "views", "visitors"] as Metric[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMetric(m)}
-              style={{
-                background: "transparent",
-                color: metric === m ? "var(--text-primary)" : "var(--text-muted)",
-                border: "none",
-                borderBottom: metric === m ? "2px solid var(--series-blue)" : "2px solid transparent",
-                padding: "2px 6px",
-                fontSize: 12,
-                fontWeight: metric === m ? 600 : 400,
-                cursor: "pointer",
-                textTransform: "capitalize",
-              }}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+        {showCustomRange && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+            <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+              From{" "}
+              <input
+                type="date"
+                value={toDateInputValue(customRange?.start ?? range.start)}
+                onChange={(e) =>
+                  setCustomRange({
+                    start: new Date(e.target.value).toISOString(),
+                    end: customRange?.end ?? range.end,
+                  })
+                }
+                style={{ background: "var(--surface-1)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 6px", fontSize: 12 }}
+              />
+            </label>
+            <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+              To{" "}
+              <input
+                type="date"
+                value={toDateInputValue(customRange?.end ?? range.end)}
+                onChange={(e) =>
+                  setCustomRange({
+                    start: customRange?.start ?? range.start,
+                    end: new Date(e.target.value).toISOString(),
+                  })
+                }
+                style={{ background: "var(--surface-1)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 6px", fontSize: 12 }}
+              />
+            </label>
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
@@ -225,14 +350,87 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
         <StatTile label="Applications" value={formatNumber(totals.applications)} accent="var(--series-orange)" />
       </div>
 
+      {/* Which form(s) count as "Applications" -- fixed color per form,
+          independent of which are currently toggled on. */}
+      {formNames.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+          {formNames.map((name) => {
+            const active = activeForms.has(name);
+            const color = formColor.get(name) ?? "var(--text-muted)";
+            return (
+              <button
+                key={name}
+                onClick={() => toggleForm(name)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: active ? "var(--gridline)" : "transparent",
+                  border: "1px solid var(--border)",
+                  borderRadius: 999,
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  color: active ? "var(--text-primary)" : "var(--text-muted)",
+                  cursor: "pointer",
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: active ? color : "var(--gridline)",
+                    display: "inline-block",
+                  }}
+                />
+                {name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {dataLoading ? (
         <p style={{ fontSize: 12, color: "var(--text-muted)" }}>Loading…</p>
       ) : (
-        <TrafficChart data={daily} metric={metric} selectedDate={selectedDate} onSelectDate={onSelectDate} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20 }}>
+          <div>
+            <h3 style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Sessions</h3>
+            <LineChart
+              dates={dates}
+              series={[{ key: "sessions", label: "Sessions", color: "var(--series-blue)", values: daily.map((d) => d.sessions) }]}
+              selectedDate={selectedDate}
+              onSelectDate={onSelectDate}
+            />
+          </div>
+          <div>
+            <h3 style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Views</h3>
+            <LineChart
+              dates={dates}
+              series={[{ key: "views", label: "Views", color: "var(--series-aqua)", values: daily.map((d) => d.views) }]}
+              selectedDate={selectedDate}
+              onSelectDate={onSelectDate}
+            />
+          </div>
+          <div>
+            <h3 style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Visitors</h3>
+            <LineChart
+              dates={dates}
+              series={[{ key: "visitors", label: "Visitors", color: "var(--series-violet)", values: daily.map((d) => d.visitors) }]}
+              selectedDate={selectedDate}
+              onSelectDate={onSelectDate}
+            />
+          </div>
+          <div>
+            <h3 style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 4 }}>Applications by form</h3>
+            <LineChart dates={dates} series={formsSeries} selectedDate={selectedDate} onSelectDate={onSelectDate} />
+          </div>
+        </div>
       )}
 
       {selectedDate && (
-        <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)" }}>
+        <div style={{ marginTop: 12, fontSize: 12, color: "var(--text-secondary)" }}>
           Filtering posts within 3 days of {selectedDate.slice(0, 10)}.{" "}
           <button
             onClick={() => onSelectDate(null)}
@@ -269,12 +467,24 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
           <h3 style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>Recent applications</h3>
           <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
             <tbody>
-              {submissions.slice(0, 8).map((s, i) => (
+              {recentSubmissions.slice(0, 8).map((s, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid var(--gridline)" }}>
                   <td style={{ padding: "6px 0", color: "var(--text-primary)" }}>
                     {s.contact_name || s.contact_email || "Unknown"}
                     {s.form_name && (
-                      <div style={{ color: "var(--text-muted)", fontSize: 11 }}>{s.form_name}</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--text-muted)", fontSize: 11, marginTop: 2 }}>
+                        <span
+                          aria-hidden
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: formColor.get(s.form_name) ?? "var(--text-muted)",
+                            display: "inline-block",
+                          }}
+                        />
+                        {s.form_name}
+                      </div>
                     )}
                   </td>
                   <td style={{ padding: "6px 0", textAlign: "right", color: "var(--text-muted)", fontSize: 12 }}>
@@ -282,7 +492,7 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate }: WebsiteTraff
                   </td>
                 </tr>
               ))}
-              {submissions.length === 0 && (
+              {recentSubmissions.length === 0 && (
                 <tr>
                   <td style={{ padding: "6px 0", color: "var(--text-muted)" }}>No applications in this range.</td>
                 </tr>

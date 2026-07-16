@@ -49,13 +49,6 @@ class Settings(BaseSettings):
     # The public key shown on the app's Webhooks page, used to verify
     # that incoming webhook JWTs actually came from Wix.
     wix_webhook_public_key: str = ""
-    # Wix's forms-actions model returns every form submission on the site
-    # (newsletter signups, contact forms, etc.), not just one form -- so
-    # the "Applications" stat/list needs to know which form_name is the
-    # actual project-application form to count. Leave blank to count
-    # every form (the old, wrong-for-this-use-case behavior); set it to
-    # the exact form name shown in the Wix Forms app once you know it.
-    wix_application_form_name: str = ""
 
 
 @lru_cache
