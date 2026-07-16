@@ -52,6 +52,30 @@ class InstagramAPIError(RuntimeError):
         self.payload = payload or {}
 
 
+class InstagramRateLimitError(InstagramAPIError):
+    """Raised when Meta's response indicates the app/account hit its Graph
+    API call quota (~200 calls/hour per account). Distinguished from other
+    API errors because it should stop a whole sync run rather than just
+    being skipped for one post -- every subsequent call will fail the same
+    way until the quota window rolls over."""
+
+
+# Graph API error codes/subcodes Meta uses for rate limiting. Not
+# exhaustive -- Meta doesn't document a single canonical list -- so this
+# is paired with a message-substring fallback below.
+_RATE_LIMIT_ERROR_CODES = {4, 17, 32, 613}
+
+
+def _is_rate_limit_error(status_code: int, body: dict | None) -> bool:
+    if status_code == 429:
+        return True
+    error = (body or {}).get("error", {})
+    if error.get("code") in _RATE_LIMIT_ERROR_CODES:
+        return True
+    message = (error.get("message") or "").lower()
+    return "limit" in message and ("request" in message or "rate" in message or "throttl" in message)
+
+
 @dataclass
 class InstagramClient:
     access_token: str
@@ -63,7 +87,10 @@ class InstagramClient:
         url = f"{GRAPH_BASE_URL}/{path}"
         resp = httpx.get(url, params=params, timeout=30)
         if resp.status_code >= 400:
-            raise InstagramAPIError(f"Instagram API error on {path}: {resp.text}", payload=resp.json() if resp.content else None)
+            body = resp.json() if resp.content else None
+            if _is_rate_limit_error(resp.status_code, body):
+                raise InstagramRateLimitError(f"Instagram API rate limit hit on {path}: {resp.text}", payload=body)
+            raise InstagramAPIError(f"Instagram API error on {path}: {resp.text}", payload=body)
         return resp.json()
 
     def get_profile(self) -> dict:
@@ -78,10 +105,17 @@ class InstagramClient:
         return self._get("me/media", params)
 
     def iter_all_media(self) -> list[dict]:
+        """Paginates through every media item, newest first. If a rate
+        limit hits partway through, returns whatever pages were already
+        fetched rather than losing them -- the caller can still make
+        progress on the posts it already knows about."""
         items: list[dict] = []
         after = None
         while True:
-            page = self.list_media(after=after)
+            try:
+                page = self.list_media(after=after)
+            except InstagramRateLimitError:
+                break
             items.extend(page.get("data", []))
             after = page.get("paging", {}).get("cursors", {}).get("after")
             if not after or not page.get("paging", {}).get("next"):
@@ -99,6 +133,11 @@ class InstagramClient:
         Rather than let one bad metric name fail the whole post, the core
         metric set is requested together (fast path) and, if that 400s,
         each metric is retried individually so we keep whatever succeeds.
+
+        A rate-limit response is different from an "invalid metric"
+        response: it means every subsequent call will fail the same way
+        until the quota resets, so it's raised straight through instead of
+        being treated as "this one metric isn't available."
         """
         media_product_type = (media_product_type or "FEED").upper()
 
@@ -113,11 +152,15 @@ class InstagramClient:
         try:
             resp = self._get(f"{media_id}/insights", {"metric": ",".join(core_metrics)})
             combined.extend(resp.get("data", []))
+        except InstagramRateLimitError:
+            raise
         except InstagramAPIError:
             for metric in core_metrics:
                 try:
                     resp = self._get(f"{media_id}/insights", {"metric": metric})
                     combined.extend(resp.get("data", []))
+                except InstagramRateLimitError:
+                    raise
                 except InstagramAPIError:
                     continue
 
@@ -129,6 +172,8 @@ class InstagramClient:
                     {"metric": _PROFILE_ACTIVITY_METRIC, "breakdown": "action_type"},
                 )
                 combined.extend(profile_activity.get("data", []))
+            except InstagramRateLimitError:
+                raise
             except InstagramAPIError:
                 pass
 
@@ -136,6 +181,8 @@ class InstagramClient:
                 try:
                     resp = self._get(f"{media_id}/insights", {"metric": metric})
                     combined.extend(resp.get("data", []))
+                except InstagramRateLimitError:
+                    raise
                 except InstagramAPIError:
                     continue
 

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.security import decrypt_token, encrypt_token
 from app.db.models import Account, Platform, Post, PostMetricSnapshot, SyncRun, SyncStatus
 from app.integrations.instagram import oauth as ig_oauth
-from app.integrations.instagram.client import InstagramAPIError, InstagramClient
+from app.integrations.instagram.client import InstagramAPIError, InstagramClient, InstagramRateLimitError
 from app.integrations.instagram.parsing import parse_media_insights, parse_media_timestamp
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 # last 60 days, so a 10-day buffer leaves plenty of margin for a sync job
 # that runs every few hours.
 TOKEN_REFRESH_BUFFER = timedelta(days=10)
+
+# If a post already has a snapshot newer than this, skip re-fetching its
+# insights this run. Instagram's rate limit (~200 calls/hour) means a
+# large account can't be fully refreshed in one run; this makes repeated
+# runs pick up where the last one left off (posts newest-first) instead
+# of re-spending the whole call budget re-fetching the same newest posts
+# every time. Kept just under the cron schedule's interval so, once an
+# account is caught up, each post still gets refreshed roughly once per
+# scheduled run.
+RESYNC_STALE_AFTER = timedelta(hours=3)
 
 
 def _ensure_fresh_token(db: Session, account: Account) -> str:
@@ -52,8 +62,12 @@ def sync_instagram_account(db: Session, account: Account) -> SyncRun:
         access_token = _ensure_fresh_token(db, account)
         client = InstagramClient(access_token=access_token)
 
+        # Cheap (paginated, ~1 call per 50 posts) even for large accounts,
+        # and iter_all_media already degrades gracefully to a partial list
+        # if it gets rate-limited mid-pagination.
         media_items = client.iter_all_media()
         synced = 0
+        rate_limited = False
 
         for item in media_items:
             external_id = item["id"]
@@ -62,6 +76,7 @@ def sync_instagram_account(db: Session, account: Account) -> SyncRun:
                 .filter(Post.platform == Platform.INSTAGRAM, Post.external_media_id == external_id)
                 .one_or_none()
             )
+            is_new_post = post is None
             if post is None:
                 post = Post(account_id=account.id, platform=Platform.INSTAGRAM, external_media_id=external_id)
 
@@ -75,9 +90,28 @@ def sync_instagram_account(db: Session, account: Account) -> SyncRun:
             db.add(post)
             db.flush()  # ensure post.id is populated for new rows
 
+            if not is_new_post:
+                latest = (
+                    db.query(PostMetricSnapshot)
+                    .filter(PostMetricSnapshot.post_id == post.id)
+                    .order_by(PostMetricSnapshot.captured_at.desc())
+                    .first()
+                )
+                if latest and datetime.now(timezone.utc) - latest.captured_at.replace(tzinfo=timezone.utc) < RESYNC_STALE_AFTER:
+                    synced += 1
+                    continue
+
             try:
                 raw_insights = client.get_media_insights(external_id, post.media_product_type)
                 snapshot_fields = parse_media_insights(raw_insights)
+            except InstagramRateLimitError:
+                # Every remaining call this run will fail the same way --
+                # stop here rather than burning through the rest of the
+                # list. What's already committed stays; the next scheduled
+                # run picks up from here since already-fresh posts above
+                # get skipped via the check above.
+                rate_limited = True
+                break
             except InstagramAPIError as exc:
                 logger.warning("Failed to fetch insights for media %s: %s", external_id, exc)
                 snapshot_fields = {"other_metrics": {}}
@@ -89,12 +123,22 @@ def sync_instagram_account(db: Session, account: Account) -> SyncRun:
 
             snapshot = PostMetricSnapshot(post_id=post.id, **snapshot_fields)
             db.add(snapshot)
-
             synced += 1
+
+            # Commit per post rather than once at the end: if this run
+            # gets interrupted (rate limit, crash, deploy restart), work
+            # already done stays saved instead of rolling back to nothing.
+            db.commit()
 
         run.status = SyncStatus.SUCCESS
         run.posts_synced = synced
         run.finished_at = datetime.now(timezone.utc)
+        if rate_limited:
+            run.error_message = (
+                f"Stopped early after hitting Instagram's rate limit -- synced {synced} of "
+                f"{len(media_items)} posts this run. Already-synced posts are skipped next "
+                f"time, so the remaining posts will complete over the next few scheduled runs."
+            )
         db.add(run)
         db.commit()
 
