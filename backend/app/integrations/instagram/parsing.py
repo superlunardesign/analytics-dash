@@ -67,6 +67,14 @@ def parse_media_insights(raw: dict[str, Any]) -> dict[str, Any]:
             continue
         if name in _SIMPLE_METRIC_MAP:
             fields[_SIMPLE_METRIC_MAP[name]] = _extract_simple_value(entry)
+            # Also keep the raw entry Instagram sent for the two watch-time
+            # metrics -- these have shown suspicious values (avg equal to
+            # total on at least one real account), and Meta flags the total
+            # metric as "in development," so preserving the untouched
+            # response lets us see exactly what Instagram returned instead
+            # of only the number our parsing produced from it.
+            if name in ("ig_reels_avg_watch_time", "ig_reels_video_view_total_time"):
+                other_metrics[f"_raw_{name}"] = entry
         elif name:
             other_metrics[name] = _extract_simple_value(entry)
 
