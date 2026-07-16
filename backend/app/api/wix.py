@@ -110,13 +110,17 @@ def fix_instance_id(instance_id: str, db: Session = Depends(get_db)) -> WixStatu
 
 
 @router.post("/sync", response_model=WixSyncRunOut)
-def trigger_sync(db: Session = Depends(get_db)) -> WixSyncRunOut:
+def trigger_sync(full: bool = False, db: Session = Depends(get_db)) -> WixSyncRunOut:
+    """`full=true` forces a full historical re-backfill instead of the
+    normal rolling-window refresh -- use it after a query/filter change to
+    purge rows further back than ROLLING_REFRESH_DAYS that a normal sync
+    would otherwise never touch again."""
     connection = db.query(WixConnection).order_by(WixConnection.connected_at.desc()).first()
     if connection is None:
         raise HTTPException(status_code=400, detail="No Wix site connected yet")
 
     try:
-        run = sync_wix_connection(db, connection)
+        run = sync_wix_connection(db, connection, force_full_backfill=full)
     except WixSyncAlreadyRunningError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001 -- surface the sync failure to the caller

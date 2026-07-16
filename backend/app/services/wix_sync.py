@@ -138,7 +138,13 @@ def _upsert_traffic_rows(db: Session, rows: list[dict]) -> None:
     db.execute(stmt)
 
 
-def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
+def sync_wix_connection(db: Session, connection: WixConnection, force_full_backfill: bool = False) -> WixSyncRun:
+    """`force_full_backfill` re-processes the full FULL_BACKFILL_DAYS window
+    instead of just the ROLLING_REFRESH_DAYS one -- needed to purge rows
+    from before a filter/query change (e.g. FORMS_FILTERS) that are now
+    outside the rolling window and so never get touched by a normal sync
+    again. A normal rolling sync only deletes+refetches the recent window,
+    so older bad rows from an earlier bug just sit there forever otherwise."""
     _check_no_concurrent_run(db, connection)
 
     run = WixSyncRun(connection_id=connection.id, status=SyncStatus.RUNNING)
@@ -157,7 +163,7 @@ def sync_wix_connection(db: Session, connection: WixConnection) -> WixSyncRun:
             .first()
             is None
         )
-        lookback_days = FULL_BACKFILL_DAYS if is_first_sync else ROLLING_REFRESH_DAYS
+        lookback_days = FULL_BACKFILL_DAYS if (is_first_sync or force_full_backfill) else ROLLING_REFRESH_DAYS
 
         now = datetime.now(timezone.utc)
         start = now - timedelta(days=lookback_days)

@@ -147,10 +147,10 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
     return map;
   }, [formNames]);
 
-  const handleSync = async () => {
+  const handleSync = async (full = false) => {
     setSyncing(true);
     try {
-      const run = await triggerWixSync();
+      const run = await triggerWixSync(full);
       setLastSync(run);
       await refreshData();
     } catch (err) {
@@ -275,23 +275,49 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
             </span>
           )}
         </div>
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          style={{
-            background: "transparent",
-            color: "var(--text-primary)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: "6px 14px",
-            fontSize: 13,
-            fontWeight: 600,
-            cursor: syncing ? "default" : "pointer",
-            opacity: syncing ? 0.6 : 1,
-          }}
-        >
-          {syncing ? "Syncing…" : "Sync now"}
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            onClick={() => handleSync(false)}
+            disabled={syncing}
+            style={{
+              background: "transparent",
+              color: "var(--text-primary)",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              padding: "6px 14px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: syncing ? "default" : "pointer",
+              opacity: syncing ? 0.6 : 1,
+            }}
+          >
+            {syncing ? "Syncing…" : "Sync now"}
+          </button>
+          <button
+            onClick={() => {
+              if (
+                confirm(
+                  "Re-fetch and re-clean the full historical window (not just the last 60 days)? Use this after a fix that changes what counts as a submission/traffic row, to purge old bad data that a normal sync won't reach. This can take longer than a normal sync."
+                )
+              ) {
+                handleSync(true);
+              }
+            }}
+            disabled={syncing}
+            title="Re-fetch and re-clean the full historical window, not just the recent rolling one"
+            style={{
+              background: "transparent",
+              color: "var(--text-muted)",
+              border: "none",
+              borderBottom: "1px dashed var(--border)",
+              padding: "4px 2px",
+              fontSize: 12,
+              cursor: syncing ? "default" : "pointer",
+            }}
+          >
+            Force full resync
+          </button>
+        </div>
       </div>
 
       {/* Date range: presets first, custom range tucked behind a disclosure. */}

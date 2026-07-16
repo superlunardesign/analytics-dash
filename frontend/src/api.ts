@@ -80,8 +80,8 @@ export function getWixStatus(): Promise<WixStatus> {
   return request("/api/wix/status");
 }
 
-export function triggerWixSync(): Promise<WixSyncRun> {
-  return request("/api/wix/sync", { method: "POST" });
+export function triggerWixSync(full = false): Promise<WixSyncRun> {
+  return request(`/api/wix/sync${full ? "?full=true" : ""}`, { method: "POST" });
 }
 
 export function wixInstallUrl(): string {
