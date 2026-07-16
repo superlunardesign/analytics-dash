@@ -75,6 +75,40 @@ def status(db: Session = Depends(get_db)) -> WixStatusOut:
     )
 
 
+@router.get("/connection/fix-instance-id", response_model=WixStatusOut)
+def fix_instance_id(instance_id: str, db: Session = Depends(get_db)) -> WixStatusOut:
+    """Manual escape hatch: corrects the stored instance_id to whatever
+    Wix's own app dashboard currently shows as installed on the site.
+    A GET with a query param (not the usual POST-for-mutation) so it's
+    just a URL that can be pasted into a browser, no HTTP client needed.
+
+    Exists because of a real failure mode -- several AppInstalled
+    webhooks fired during troubleshooting (dev-site tests, retries
+    before a bug fix landed), each with a different instance_id, and the
+    one that happened to get stored first isn't necessarily the one
+    that's actually still valid. There's no supported way to ask Wix
+    "what's the current instance_id for this site" directly, so this
+    just takes the value the site owner can see for themselves and uses
+    it as the source of truth.
+    """
+    connection = db.query(WixConnection).order_by(WixConnection.connected_at.desc()).first()
+    if connection is None:
+        connection = WixConnection(site_id=instance_id, instance_id=instance_id)
+    else:
+        connection.instance_id = instance_id
+        connection.site_id = instance_id
+    db.add(connection)
+    db.commit()
+    db.refresh(connection)
+    logger.info("Manually corrected Wix connection instance_id to %s", instance_id)
+
+    return WixStatusOut(
+        connected=True,
+        site_display_name=connection.site_display_name,
+        connected_at=connection.connected_at,
+    )
+
+
 @router.post("/sync", response_model=WixSyncRunOut)
 def trigger_sync(db: Session = Depends(get_db)) -> WixSyncRunOut:
     connection = db.query(WixConnection).order_by(WixConnection.connected_at.desc()).first()
