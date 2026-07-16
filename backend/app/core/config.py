@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +15,17 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = "sqlite:///./dev.db"
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_postgres_scheme(cls, v: str) -> str:
+        # Render (like Heroku) hands out connection strings using the old
+        # "postgres://" scheme, which SQLAlchemy 2.0 refuses to load a
+        # dialect for. Normalize it here so every consumer of Settings --
+        # the app, Alembic -- gets a URL that actually works.
+        if v.startswith("postgres://"):
+            return "postgresql://" + v[len("postgres://") :]
+        return v
 
     # Meta / Instagram Graph API (Business Login)
     # Create these at https://developers.facebook.com/apps
