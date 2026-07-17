@@ -10,6 +10,7 @@ Reference: https://dev.wix.com/docs/api-reference/business-management/analytics/
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,6 +23,20 @@ FORMS_MODEL_ID = "88cf0797-ea27-43e2-9901-3080deca1d66"
 
 # 1,000 rows/query cap -- see WixAPIError docstring on query_model.
 MAX_PAGE_SIZE = 1000
+
+# Wix's own edge/gateway occasionally returns a transient 502/503/504 --
+# these succeed on retry and shouldn't kill an entire sync run over one
+# hiccup (see the matching constants in forms_client.py).
+_RETRYABLE_STATUS_CODES = {502, 503, 504}
+_MAX_ATTEMPTS = 3
+_RETRY_BACKOFF_SECONDS = 2  # 2s, then 4s
+
+
+def _safe_json(resp: httpx.Response) -> dict | None:
+    try:
+        return resp.json()
+    except ValueError:
+        return None
 
 
 class WixAPIError(RuntimeError):
@@ -37,22 +52,29 @@ class WixAnalyticsClient:
     def _request(self, method: str, path: str, **kwargs: Any) -> dict:
         url = f"{GRAPH_BASE_URL}{path}"
         headers = {"Authorization": self.access_token}
-        resp = httpx.request(method, url, headers=headers, timeout=30, **kwargs)
+        resp: httpx.Response | None = None
+        for attempt in range(_MAX_ATTEMPTS):
+            resp = httpx.request(method, url, headers=headers, timeout=30, **kwargs)
+            if resp.status_code not in _RETRYABLE_STATUS_CODES or attempt == _MAX_ATTEMPTS - 1:
+                break
+            time.sleep(_RETRY_BACKOFF_SECONDS * (2**attempt))
+        assert resp is not None
+
         if resp.status_code >= 400:
             raise WixAPIError(
                 f"Wix API error on {method} {path} (status {resp.status_code}): {resp.text[:2000]}",
-                payload=resp.json() if resp.content else None,
+                payload=_safe_json(resp),
             )
-        try:
-            return resp.json()
-        except ValueError as exc:
-            # A 2xx with an unparseable body -- surface the status/URL/raw
-            # text instead of letting the bare JSONDecodeError bubble up
-            # with no indication of which call or endpoint produced it.
+        parsed = _safe_json(resp)
+        if parsed is None:
+            # A 2xx with an unparseable/empty body -- surface the
+            # status/URL/raw text instead of letting a bare JSONDecodeError
+            # bubble up with no indication of which call produced it.
             raise WixAPIError(
                 f"Wix API returned a non-JSON 2xx body on {method} {path} "
                 f"(status {resp.status_code}): {resp.text[:2000]!r}"
-            ) from exc
+            )
+        return parsed
 
     def get_site_timezone(self) -> str:
         """The site's IANA timezone, needed so day buckets in query_model
