@@ -39,8 +39,20 @@ class WixAnalyticsClient:
         headers = {"Authorization": self.access_token}
         resp = httpx.request(method, url, headers=headers, timeout=30, **kwargs)
         if resp.status_code >= 400:
-            raise WixAPIError(f"Wix API error on {path}: {resp.text}", payload=resp.json() if resp.content else None)
-        return resp.json()
+            raise WixAPIError(
+                f"Wix API error on {method} {path} (status {resp.status_code}): {resp.text[:2000]}",
+                payload=resp.json() if resp.content else None,
+            )
+        try:
+            return resp.json()
+        except ValueError as exc:
+            # A 2xx with an unparseable body -- surface the status/URL/raw
+            # text instead of letting the bare JSONDecodeError bubble up
+            # with no indication of which call or endpoint produced it.
+            raise WixAPIError(
+                f"Wix API returned a non-JSON 2xx body on {method} {path} "
+                f"(status {resp.status_code}): {resp.text[:2000]!r}"
+            ) from exc
 
     def get_site_timezone(self) -> str:
         """The site's IANA timezone, needed so day buckets in query_model

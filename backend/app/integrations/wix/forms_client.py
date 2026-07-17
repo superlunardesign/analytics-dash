@@ -51,9 +51,19 @@ class WixFormsClient:
         resp = httpx.request(method, url, headers=headers, timeout=30, **kwargs)
         if resp.status_code >= 400:
             raise WixFormsAPIError(
-                f"Wix Forms API error on {path}: {resp.text}", payload=resp.json() if resp.content else None
+                f"Wix Forms API error on {method} {path} (status {resp.status_code}): {resp.text[:2000]}",
+                payload=resp.json() if resp.content else None,
             )
-        return resp.json()
+        try:
+            return resp.json()
+        except ValueError as exc:
+            # A 2xx with an unparseable body -- surface the status/URL/raw
+            # text instead of letting the bare JSONDecodeError bubble up
+            # with no indication of which call or endpoint produced it.
+            raise WixFormsAPIError(
+                f"Wix Forms API returned a non-JSON 2xx body on {method} {path} "
+                f"(status {resp.status_code}): {resp.text[:2000]!r}"
+            ) from exc
 
     def iter_forms(self) -> list[dict]:
         forms: list[dict] = []
