@@ -26,12 +26,14 @@ import httpx
 
 FORMS_BASE_URL = "https://www.wixapis.com"
 
-# Wix's own edge/gateway occasionally returns a transient 502/503/504 (seen
-# live: a 502 with an empty body on List Forms) -- these succeed on retry
-# and shouldn't kill an entire sync run over one hiccup.
+# Wix's own edge/gateway occasionally returns a transient 502/503/504 --
+# confirmed live as a persistent 502 straight from nginx (never reaching
+# Wix's application layer) on List Forms specifically. This endpoint has
+# proven flakier than the analytics API (client.py uses 3 attempts), so
+# give it more attempts and longer backoff before giving up.
 _RETRYABLE_STATUS_CODES = {502, 503, 504}
-_MAX_ATTEMPTS = 3
-_RETRY_BACKOFF_SECONDS = 2  # 2s, then 4s
+_MAX_ATTEMPTS = 5
+_RETRY_BACKOFF_SECONDS = 2  # 2s, 4s, 8s, 16s
 
 
 def _safe_json(resp: httpx.Response) -> dict | None:
@@ -39,6 +41,7 @@ def _safe_json(resp: httpx.Response) -> dict | None:
         return resp.json()
     except ValueError:
         return None
+
 
 # The only namespace real (non-headless) Wix Forms submissions use --
 # confirmed live; QuerySubmissionsByNamespace and ListForms both require

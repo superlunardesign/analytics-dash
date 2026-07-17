@@ -246,64 +246,101 @@ def sync_wix_connection(db: Session, connection: WixConnection, force_full_backf
         # filtering needed) and gives each one a real permanent ID, so
         # there's no rolling window or boundary-day dedupe concern here --
         # every sync just fetches the complete current set for every form.
-        forms = forms_client.iter_forms()
-        submission_values: list[dict] = []
-        seen_submission_ids: set[str] = set()
-        for form in forms:
-            form_id = form.get("id")
-            if not form_id:
-                continue
-            form_name = form.get("name") or form.get("properties", {}).get("name")
-            full_form = forms_client.get_form(form_id)
-            schema_fields = extract_question_fields(full_form)
-            _upsert_form_schema(db, connection.id, form_id, form_name, schema_fields)
-
-            first_name_target = _find_target_by_field_type(schema_fields, "CONTACTS_FIRST_NAME")
-            last_name_target = _find_target_by_field_type(schema_fields, "CONTACTS_LAST_NAME")
-            email_target = _find_target_by_field_type(schema_fields, "CONTACTS_EMAIL")
-
-            for submission in forms_client.iter_submissions(form_id):
-                wix_submission_id = submission.get("id")
-                created_date = submission.get("createdDate")
-                if not wix_submission_id or not created_date or wix_submission_id in seen_submission_ids:
+        #
+        # Isolated in its own try/except: Wix's form-schema-service is a
+        # newer, less reliable endpoint than the analytics API traffic
+        # sync above uses (confirmed live: a persistent 502 straight from
+        # nginx, never even reaching Wix's application layer), and a
+        # flaky third-party endpoint shouldn't be able to fail the entire
+        # run -- including the traffic data that just synced fine. A forms
+        # failure here is recorded on the run but doesn't roll back the
+        # traffic commit already made, and the run still reports success.
+        forms_error: str | None = None
+        try:
+            forms = forms_client.iter_forms()
+            submission_values: list[dict] = []
+            seen_submission_ids: set[str] = set()
+            all_forms_ok = True
+            failed_form_names: list[str] = []
+            for form in forms:
+                form_id = form.get("id")
+                if not form_id:
                     continue
-                seen_submission_ids.add(wix_submission_id)
-                answers = submission.get("submissions", {}) or {}
-                first = answers.get(first_name_target) if first_name_target else None
-                last = answers.get(last_name_target) if last_name_target else None
-                contact_name = " ".join(p for p in (first, last) if p) or None
-                submission_values.append(
-                    {
-                        "connection_id": connection.id,
-                        "wix_submission_id": wix_submission_id,
-                        "wix_form_id": form_id,
-                        "submitted_at": datetime.fromisoformat(created_date.replace("Z", "+00:00")),
-                        "form_name": form_name,
-                        "contact_name": contact_name,
-                        "contact_email": answers.get(email_target) if email_target else None,
-                        "status": submission.get("status"),
-                        "fields": answers,
-                        "raw_payload": submission,
-                    }
-                )
-                rows_synced += 1
-        db.commit()
+                form_name = form.get("name") or form.get("properties", {}).get("name")
+                try:
+                    full_form = forms_client.get_form(form_id)
+                    schema_fields = extract_question_fields(full_form)
+                    _upsert_form_schema(db, connection.id, form_id, form_name, schema_fields)
 
-        _upsert_form_submissions(db, submission_values)
-        if forms:
-            # Full reconciliation: since every form's complete current
-            # submission set was just fetched, anything previously synced
-            # that didn't come back this time was deleted on Wix's side.
-            db.query(WebsiteFormSubmission).filter(
-                WebsiteFormSubmission.connection_id == connection.id,
-                WebsiteFormSubmission.wix_submission_id.isnot(None),
-                ~WebsiteFormSubmission.wix_submission_id.in_(seen_submission_ids),
-            ).delete(synchronize_session=False)
-        db.commit()
+                    first_name_target = _find_target_by_field_type(schema_fields, "CONTACTS_FIRST_NAME")
+                    last_name_target = _find_target_by_field_type(schema_fields, "CONTACTS_LAST_NAME")
+                    email_target = _find_target_by_field_type(schema_fields, "CONTACTS_EMAIL")
+
+                    for submission in forms_client.iter_submissions(form_id):
+                        wix_submission_id = submission.get("id")
+                        created_date = submission.get("createdDate")
+                        if not wix_submission_id or not created_date or wix_submission_id in seen_submission_ids:
+                            continue
+                        seen_submission_ids.add(wix_submission_id)
+                        answers = submission.get("submissions", {}) or {}
+                        first = answers.get(first_name_target) if first_name_target else None
+                        last = answers.get(last_name_target) if last_name_target else None
+                        contact_name = " ".join(p for p in (first, last) if p) or None
+                        submission_values.append(
+                            {
+                                "connection_id": connection.id,
+                                "wix_submission_id": wix_submission_id,
+                                "wix_form_id": form_id,
+                                "submitted_at": datetime.fromisoformat(created_date.replace("Z", "+00:00")),
+                                "form_name": form_name,
+                                "contact_name": contact_name,
+                                "contact_email": answers.get(email_target) if email_target else None,
+                                "status": submission.get("status"),
+                                "fields": answers,
+                                "raw_payload": submission,
+                            }
+                        )
+                        rows_synced += 1
+                except Exception:  # noqa: BLE001 -- one bad form shouldn't lose every other form's data
+                    all_forms_ok = False
+                    failed_form_names.append(form_name or form_id)
+                    logger.exception(
+                        "Wix forms sync: skipping form %s (%s) for connection %s after an error",
+                        form_id,
+                        form_name,
+                        connection.id,
+                    )
+            db.commit()
+
+            _upsert_form_submissions(db, submission_values)
+            if forms and all_forms_ok:
+                # Full reconciliation only when every form synced cleanly --
+                # a partial fetch (one form skipped above) isn't a complete
+                # current set, so deleting "missing" rows would wrongly
+                # purge real submissions from whichever form errored.
+                db.query(WebsiteFormSubmission).filter(
+                    WebsiteFormSubmission.connection_id == connection.id,
+                    WebsiteFormSubmission.wix_submission_id.isnot(None),
+                    ~WebsiteFormSubmission.wix_submission_id.in_(seen_submission_ids),
+                ).delete(synchronize_session=False)
+            db.commit()
+            if failed_form_names:
+                forms_error = f"Skipped {len(failed_form_names)} form(s) after errors: {', '.join(failed_form_names)}"
+        except Exception as exc:  # noqa: BLE001 -- forms syncing is best-effort; traffic already committed above
+            db.rollback()
+            forms_error = f"forms sync failed entirely: {exc}"
+            logger.exception("Wix forms sync failed for connection %s (traffic sync still succeeded)", connection.id)
 
         run.status = SyncStatus.SUCCESS
         run.rows_synced = rows_synced
         run.finished_at = datetime.now(timezone.utc)
+        if forms_error:
+            # Still a successful run -- traffic synced -- but flagged so a
+            # total or partial forms-sync problem is visible rather than
+            # silently swallowed. forms_error's own wording already says
+            # whether it was total ("forms sync failed...") or partial
+            # ("Skipped N form(s)...").
+            run.error_message = f"Traffic synced; {forms_error}"
         db.add(run)
         db.commit()
 
