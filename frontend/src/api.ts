@@ -46,6 +46,7 @@ export interface ListPostsParams {
   order?: "asc" | "desc";
   date_from?: string;
   date_to?: string;
+  is_saved?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -74,6 +75,14 @@ export function setManualMetrics(id: string, payload: ManualMetricsInput): Promi
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+  });
+}
+
+export function setPostSaved(id: string, is_saved: boolean): Promise<PostDetail> {
+  return request(`/api/posts/${id}/saved`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ is_saved }),
   });
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getInstagramStatus, getPost, instagramOAuthStartUrl, listPosts, triggerInstagramSync } from "./api";
+import { getInstagramStatus, getPost, instagramOAuthStartUrl, listPosts, setPostSaved, triggerInstagramSync } from "./api";
 import { ConnectBar } from "./components/ConnectBar";
 import { PostDetailDrawer } from "./components/PostDetailDrawer";
 import { PostsTable } from "./components/PostsTable";
@@ -23,6 +23,7 @@ function App() {
   const [sortBy, setSortBy] = useState<SortField>("posted_at");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [mediaProductType, setMediaProductType] = useState<string>("");
+  const [postsTab, setPostsTab] = useState<"all" | "saved">("all");
 
   const [selectedPost, setSelectedPost] = useState<PostDetail | null>(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
@@ -62,19 +63,27 @@ function App() {
   const refreshPosts = useCallback(async () => {
     setPostsLoading(true);
     try {
-      const res = await listPosts({
-        sort_by: sortBy,
-        order,
-        media_product_type: mediaProductType || undefined,
-        date_from: dateWindow?.from,
-        date_to: dateWindow?.to,
-        limit: 200,
-      });
+      // The Saved tab is a stable personal collection -- it ignores the
+      // type/date filters (which belong to browsing "All posts") so it
+      // always shows everything bookmarked, not whatever the main table's
+      // filters happened to be left on.
+      const res = await listPosts(
+        postsTab === "saved"
+          ? { sort_by: sortBy, order, is_saved: true, limit: 200 }
+          : {
+              sort_by: sortBy,
+              order,
+              media_product_type: mediaProductType || undefined,
+              date_from: dateWindow?.from,
+              date_to: dateWindow?.to,
+              limit: 200,
+            }
+      );
       setPosts(res.items);
     } finally {
       setPostsLoading(false);
     }
-  }, [sortBy, order, mediaProductType, dateWindow]);
+  }, [sortBy, order, mediaProductType, dateWindow, postsTab]);
 
   useEffect(() => {
     refreshStatus();
@@ -127,6 +136,11 @@ function App() {
 
   const handlePostSaved = (updated: PostDetail) => {
     setSelectedPost(updated);
+    refreshPosts();
+  };
+
+  const handleToggleSaved = async (post: Post) => {
+    await setPostSaved(post.id, !post.is_saved);
     refreshPosts();
   };
 
@@ -202,31 +216,54 @@ function App() {
         />
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <label style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-          Type:{" "}
-          <select
-            value={mediaProductType}
-            onChange={(e) => setMediaProductType(e.target.value)}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {(["all", "saved"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setPostsTab(tab)}
             style={{
-              background: "var(--surface-1)",
-              color: "var(--text-primary)",
+              background: postsTab === tab ? "var(--series-blue)" : "transparent",
+              color: postsTab === tab ? "#fff" : "var(--text-secondary)",
               border: "1px solid var(--border)",
               borderRadius: 6,
-              padding: "4px 8px",
+              padding: "6px 14px",
               fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
             }}
           >
-            <option value="">All</option>
-            {MEDIA_PRODUCT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
+            {tab === "all" ? "All posts" : "★ Saved"}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        {postsTab === "all" && (
+          <label style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+            Type:{" "}
+            <select
+              value={mediaProductType}
+              onChange={(e) => setMediaProductType(e.target.value)}
+              style={{
+                background: "var(--surface-1)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: "4px 8px",
+                fontSize: 13,
+              }}
+            >
+              <option value="">All</option>
+              {MEDIA_PRODUCT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {postsLoading && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Loading…</span>}
-        {selectedTrafficDate && (
+        {postsTab === "all" && selectedTrafficDate && (
           <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
             Filtered to posts within 3 days of {selectedTrafficDate.slice(0, 10)}.{" "}
             <button
@@ -237,14 +274,22 @@ function App() {
             </button>
           </span>
         )}
-        {!selectedTrafficDate && showTraffic && trafficRange && (
+        {postsTab === "all" && !selectedTrafficDate && showTraffic && trafficRange && (
           <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
             Matching the traffic panel's date range ({trafficRange.start.slice(0, 10)} to {trafficRange.end.slice(0, 10)}).
           </span>
         )}
       </div>
 
-      <PostsTable posts={posts} sortBy={sortBy} order={order} onSort={handleSort} onSelect={handleSelectPost} />
+      <PostsTable
+        posts={posts}
+        sortBy={sortBy}
+        order={order}
+        onSort={handleSort}
+        onSelect={handleSelectPost}
+        onToggleSaved={handleToggleSaved}
+        emptyMessage={postsTab === "saved" ? "Nothing saved yet -- click the ☆ on any post to add it here." : undefined}
+      />
 
       <PostDetailDrawer
         post={selectedPost}

@@ -47,6 +47,8 @@ class PostOut(BaseModel):
     manual_bio_link_taps: int | None = None
     manual_follows: int | None = None
 
+    is_saved: bool = False
+
 
 class PostDetailOut(PostOut):
     metric_history: list[MetricSnapshotOut] = []
@@ -61,3 +63,7 @@ class ManualMetricsIn(BaseModel):
     profile_visits: int | None = None
     bio_link_taps: int | None = None
     follows: int | None = None
+
+
+class SavedIn(BaseModel):
+    is_saved: bool

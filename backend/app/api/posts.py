@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, aliased
 
 from app.db.models import Platform, Post, PostMetricSnapshot
 from app.db.session import get_db
-from app.schemas.post import ManualMetricsIn, MetricSnapshotOut, PostDetailOut, PostListResponse, PostOut
+from app.schemas.post import ManualMetricsIn, MetricSnapshotOut, PostDetailOut, PostListResponse, PostOut, SavedIn
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
@@ -81,6 +81,7 @@ def list_posts(
     media_product_type: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    is_saved: bool | None = None,
     sort_by: SortField = "posted_at",
     order: Literal["asc", "desc"] = "desc",
     limit: int = Query(default=50, le=200),
@@ -108,6 +109,8 @@ def list_posts(
         query = query.filter(Post.posted_at >= date_from)
     if date_to:
         query = query.filter(Post.posted_at <= date_to)
+    if is_saved is not None:
+        query = query.filter(Post.is_saved == is_saved)
 
     total = query.count()
 
@@ -178,6 +181,21 @@ def set_manual_metrics(post_id: str, payload: ManualMetricsIn, db: Session = Dep
     post.manual_profile_visits = payload.profile_visits
     post.manual_bio_link_taps = payload.bio_link_taps
     post.manual_follows = payload.follows
+    db.add(post)
+    db.commit()
+    db.refresh(post)
+
+    return get_post(post_id, db)
+
+
+@router.put("/{post_id}/saved", response_model=PostDetailOut)
+def set_saved(post_id: str, payload: SavedIn, db: Session = Depends(get_db)) -> PostDetailOut:
+    """Toggles a post's bookmark state for the dashboard's "Saved" tab."""
+    post = db.query(Post).filter(Post.id == post_id).one_or_none()
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    post.is_saved = payload.is_saved
     db.add(post)
     db.commit()
     db.refresh(post)

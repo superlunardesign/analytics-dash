@@ -9,8 +9,8 @@ import {
   triggerWixSync,
   wixInstallUrl,
 } from "../api";
-import type { DailyTraffic, FormSchema, FormSubmission, TopPage, WixStatus, WixSyncRun } from "../types";
-import { formatDateTime, formatNumber } from "../format";
+import type { DailyTraffic, FormSchema, FormSchemaField, FormSubmission, TopPage, WixStatus, WixSyncRun } from "../types";
+import { formatDateTime, formatFieldAnswer, formatNumber } from "../format";
 import { StatTile } from "./StatTile";
 import { LineChart } from "./LineChart";
 import { SubmissionDetailDrawer } from "./SubmissionDetailDrawer";
@@ -66,6 +66,15 @@ function rangeForPreset(preset: RangePreset): { start: string; end: string } {
 
 function toDateInputValue(iso: string): string {
   return iso.slice(0, 10);
+}
+
+// Finds a question by matching its human-readable label (not its opaque
+// target key, e.g. "short_answer_d8fe", which carries no semantic meaning)
+// so the "Recent submissions" preview can surface specific answers -- which
+// services they picked, how they heard about us -- without hardcoding a
+// per-form field key that would break the moment the form is edited.
+function findFieldByKeyword(schema: FormSchema | null, keywords: string[]): FormSchemaField | undefined {
+  return schema?.fields.find((f) => keywords.some((kw) => f.label.toLowerCase().includes(kw)));
 }
 
 export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange }: WebsiteTrafficPanelProps) {
@@ -419,7 +428,7 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
         <StatTile label="Sessions" value={formatNumber(totals.sessions)} accent="var(--series-blue)" />
         <StatTile label="Views" value={formatNumber(totals.views)} accent="var(--series-aqua)" />
         <StatTile label="Visitors" value={formatNumber(totals.visitors)} accent="var(--series-violet)" />
-        <StatTile label="Applications" value={formatNumber(totals.applications)} accent="var(--series-orange)" />
+        <StatTile label="Forms" value={formatNumber(totals.applications)} accent="var(--series-orange)" />
       </div>
 
       {/* Toggle rows -- metrics share the left axis, forms the right one.
@@ -545,45 +554,61 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
         </div>
 
         <div style={{ flex: "1 1 280px" }}>
-          <h3 style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>Recent applications</h3>
-          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-            <tbody>
-              {recentSubmissions.slice(0, 8).map((s) => (
-                <tr
-                  key={s.id}
-                  onClick={() => setSelectedSubmission(s)}
-                  style={{ borderBottom: "1px solid var(--gridline)", cursor: "pointer" }}
-                >
-                  <td style={{ padding: "6px 0", color: "var(--text-primary)" }}>
-                    {s.contact_name || s.contact_email || "Unknown"}
-                    {s.form_name && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--text-muted)", fontSize: 11, marginTop: 2 }}>
-                        <span
-                          aria-hidden
-                          style={{
-                            width: 7,
-                            height: 7,
-                            borderRadius: "50%",
-                            background: formColor.get(s.form_name) ?? "var(--text-muted)",
-                            display: "inline-block",
-                          }}
-                        />
-                        {s.form_name}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ padding: "6px 0", textAlign: "right", color: "var(--text-muted)", fontSize: 12 }}>
-                    {formatDateTime(s.submitted_at)}
-                  </td>
-                </tr>
-              ))}
-              {recentSubmissions.length === 0 && (
-                <tr>
-                  <td style={{ padding: "6px 0", color: "var(--text-muted)" }}>No applications in this range.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <h3 style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>Recent submissions</h3>
+          <div style={{ maxHeight: 340, overflowY: "auto" }}>
+            <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+              <tbody>
+                {recentSubmissions.map((s) => {
+                  const schema = formSchemas.find((fs) => fs.form_id === s.wix_form_id) ?? null;
+                  const serviceField = findFieldByKeyword(schema, ["service"]);
+                  const hearField = findFieldByKeyword(schema, ["hear"]);
+                  const serviceValue = serviceField ? formatFieldAnswer(s.fields[serviceField.target], serviceField.options) : null;
+                  const hearValue = hearField ? formatFieldAnswer(s.fields[hearField.target], hearField.options) : null;
+                  return (
+                    <tr
+                      key={s.id}
+                      onClick={() => setSelectedSubmission(s)}
+                      style={{ borderBottom: "1px solid var(--gridline)", cursor: "pointer" }}
+                    >
+                      <td style={{ padding: "6px 0", color: "var(--text-primary)" }}>
+                        {s.contact_name || s.contact_email || "Unknown"}
+                        {s.form_name && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, color: "var(--text-muted)", fontSize: 11, marginTop: 2 }}>
+                            <span
+                              aria-hidden
+                              style={{
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                background: formColor.get(s.form_name) ?? "var(--text-muted)",
+                                display: "inline-block",
+                              }}
+                            />
+                            {s.form_name}
+                          </div>
+                        )}
+                        {(serviceValue && serviceValue !== "—") || (hearValue && hearValue !== "—") ? (
+                          <div style={{ color: "var(--text-muted)", fontSize: 11, marginTop: 2 }}>
+                            {serviceValue && serviceValue !== "—" && <span>Service: {serviceValue}</span>}
+                            {serviceValue && serviceValue !== "—" && hearValue && hearValue !== "—" && " · "}
+                            {hearValue && hearValue !== "—" && <span>Found via: {hearValue}</span>}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td style={{ padding: "6px 0", textAlign: "right", color: "var(--text-muted)", fontSize: 12, whiteSpace: "nowrap" }}>
+                        {formatDateTime(s.submitted_at)}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {recentSubmissions.length === 0 && (
+                  <tr>
+                    <td style={{ padding: "6px 0", color: "var(--text-muted)" }}>No submissions in this range.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

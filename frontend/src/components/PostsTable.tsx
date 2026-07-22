@@ -86,14 +86,17 @@ interface PostsTableProps {
   order: "asc" | "desc";
   onSort: (field: SortField) => void;
   onSelect: (post: Post) => void;
+  onToggleSaved: (post: Post) => void;
+  emptyMessage?: string;
 }
 
-export function PostsTable({ posts, sortBy, order, onSort, onSelect }: PostsTableProps) {
+export function PostsTable({ posts, sortBy, order, onSort, onSelect, onToggleSaved, emptyMessage }: PostsTableProps) {
   return (
     <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
         <thead>
           <tr style={{ background: "var(--surface-1)" }}>
+            <th style={{ padding: "10px 6px", borderBottom: "1px solid var(--gridline)", width: 32 }} />
             {columns.map((col) => {
               const isSorted = col.sortable && sortBy === col.key;
               return (
@@ -126,6 +129,27 @@ export function PostsTable({ posts, sortBy, order, onSort, onSelect }: PostsTabl
               onClick={() => onSelect(post)}
               style={{ borderBottom: "1px solid var(--gridline)", cursor: "pointer" }}
             >
+              <td style={{ padding: "10px 6px", textAlign: "center" }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleSaved(post);
+                  }}
+                  title={post.is_saved ? "Remove from Saved" : "Save"}
+                  aria-label={post.is_saved ? "Remove from Saved" : "Save"}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 16,
+                    lineHeight: 1,
+                    padding: 0,
+                    color: post.is_saved ? "var(--series-yellow)" : "var(--text-muted)",
+                  }}
+                >
+                  {post.is_saved ? "★" : "☆"}
+                </button>
+              </td>
               {columns.map((col) => (
                 <td key={col.key} style={{ padding: "10px 14px", color: "var(--text-primary)" }}>
                   {col.render(post)}
@@ -135,8 +159,8 @@ export function PostsTable({ posts, sortBy, order, onSort, onSelect }: PostsTabl
           ))}
           {posts.length === 0 && (
             <tr>
-              <td colSpan={columns.length} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
-                No posts yet. Connect Instagram and run a sync to pull your content.
+              <td colSpan={columns.length + 1} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
+                {emptyMessage ?? "No posts yet. Connect Instagram and run a sync to pull your content."}
               </td>
             </tr>
           )}

@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -87,6 +87,11 @@ class Post(Base):
     manual_profile_visits: Mapped[int | None] = mapped_column(Integer, nullable=True)
     manual_bio_link_taps: Mapped[int | None] = mapped_column(Integer, nullable=True)
     manual_follows: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # User-curated bookmark, toggled from the dashboard -- lets a "Saved"
+    # tab show a stable collection independent of whatever sort/filter/date
+    # window the main posts table happens to be showing.
+    is_saved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
 
     # Full raw API payload for the media object, kept so we can backfill new
     # fields later without re-hitting the API.

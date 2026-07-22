@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { setManualMetrics } from "../api";
+import { setManualMetrics, setPostSaved } from "../api";
 import type { PostDetail } from "../types";
 import { formatDateTime, formatNumber, formatSeconds, mediaTypeColor } from "../format";
 
@@ -42,6 +42,7 @@ export function PostDetailDrawer({ post, loading, onClose, onSaved }: PostDetail
   const [follows, setFollows] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [togglingSaved, setTogglingSaved] = useState(false);
 
   useEffect(() => {
     setProfileVisits(post?.manual_profile_visits != null ? String(post.manual_profile_visits) : "");
@@ -57,6 +58,16 @@ export function PostDetailDrawer({ post, loading, onClose, onSaved }: PostDetail
     if (trimmed === "") return null;
     const n = Number(trimmed);
     return Number.isFinite(n) ? Math.trunc(n) : null;
+  };
+
+  const handleToggleSaved = async () => {
+    if (!post) return;
+    setTogglingSaved(true);
+    try {
+      onSaved(await setPostSaved(post.id, !post.is_saved));
+    } finally {
+      setTogglingSaved(false);
+    }
   };
 
   const handleSave = async () => {
@@ -100,20 +111,43 @@ export function PostDetailDrawer({ post, loading, onClose, onSaved }: PostDetail
           borderLeft: "1px solid var(--border)",
         }}
       >
-        <button
-          onClick={onClose}
-          style={{
-            background: "transparent",
-            border: "1px solid var(--border)",
-            borderRadius: 6,
-            padding: "4px 10px",
-            cursor: "pointer",
-            color: "var(--text-secondary)",
-            marginBottom: 16,
-          }}
-        >
-          Close
-        </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              padding: "4px 10px",
+              cursor: "pointer",
+              color: "var(--text-secondary)",
+            }}
+          >
+            Close
+          </button>
+          {post && (
+            <button
+              onClick={handleToggleSaved}
+              disabled={togglingSaved}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: "4px 10px",
+                cursor: togglingSaved ? "default" : "pointer",
+                opacity: togglingSaved ? 0.6 : 1,
+                color: post.is_saved ? "var(--series-yellow)" : "var(--text-secondary)",
+                fontSize: 13,
+              }}
+            >
+              <span aria-hidden>{post.is_saved ? "★" : "☆"}</span>
+              {post.is_saved ? "Saved" : "Save"}
+            </button>
+          )}
+        </div>
 
         {loading && <p style={{ color: "var(--text-muted)" }}>Loading…</p>}
 

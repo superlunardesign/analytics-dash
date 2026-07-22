@@ -1,5 +1,5 @@
 import type { FormSchema, FormSubmission } from "../types";
-import { formatDateTime } from "../format";
+import { formatDateTime, formatFieldAnswer } from "../format";
 
 interface SubmissionDetailDrawerProps {
   submission: FormSubmission | null;
@@ -8,25 +8,11 @@ interface SubmissionDetailDrawerProps {
   onClose: () => void;
 }
 
-function formatAnswer(value: unknown): string {
-  if (value == null || value === "") return "—";
-  if (Array.isArray(value)) return value.length ? value.join(", ") : "—";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "object") {
-    const v = value as Record<string, unknown>;
-    // Wix's scheduling/appointment field shape: {startDate, endDate, timeZone}.
-    if (typeof v.startDate === "string") {
-      return `${formatDateTime(v.startDate)}${v.timeZone ? ` (${v.timeZone})` : ""}`;
-    }
-    return JSON.stringify(value);
-  }
-  return String(value);
-}
-
 export function SubmissionDetailDrawer({ submission, schema, loading, onClose }: SubmissionDetailDrawerProps) {
   if (!submission && !loading) return null;
 
-  const labelFor = (target: string) => schema?.fields.find((f) => f.target === target)?.label ?? target.replace(/_/g, " ");
+  const fieldFor = (target: string) => schema?.fields.find((f) => f.target === target);
+  const labelFor = (target: string) => fieldFor(target)?.label ?? target.replace(/_/g, " ");
 
   // Order answers by the form's own field order when we have a schema
   // (falls back to insertion order for any answer key the schema doesn't
@@ -129,7 +115,7 @@ export function SubmissionDetailDrawer({ submission, schema, loading, onClose }:
                   <div key={target}>
                     <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 2 }}>{labelFor(target)}</div>
                     <div style={{ fontSize: 14, color: "var(--text-primary)", whiteSpace: "pre-wrap" }}>
-                      {formatAnswer(value)}
+                      {formatFieldAnswer(value, fieldFor(target)?.options)}
                     </div>
                   </div>
                 );

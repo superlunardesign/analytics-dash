@@ -31,6 +31,9 @@ export interface Post {
   manual_profile_visits: number | null;
   manual_bio_link_taps: number | null;
   manual_follows: number | null;
+  // User-curated bookmark for the "Saved" tab, independent of the main
+  // table's current sort/filter/date window.
+  is_saved: boolean;
 }
 
 export interface PostDetail extends Post {
