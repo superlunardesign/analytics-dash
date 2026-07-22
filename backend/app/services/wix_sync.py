@@ -73,6 +73,7 @@ EXCLUDED_SUBMISSION_EMAILS = {
     "christina@christinahalldesign.com",
     "christinasuze@icloud.com",
     "superlunarfb@gmail.com",
+    "christina@superlunardesign.com",
 }
 
 TRAFFIC_FIELDS = [
