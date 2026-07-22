@@ -64,6 +64,17 @@ FULL_BACKFILL_DAYS = 1000
 # window rather than only ever appending forward from where it left off.
 ROLLING_REFRESH_DAYS = 60
 
+# Internal/test submitters (Christina's own accounts, used to test forms
+# while building/QA'ing them) -- never stored, on any form, regardless of
+# which site or form they come through. Compared case-insensitively since
+# Wix doesn't normalize case on the raw submitted value.
+EXCLUDED_SUBMISSION_EMAILS = {
+    "tinytinafit@gmail.com",
+    "christina@christinahalldesign.com",
+    "christinasuze@icloud.com",
+    "superlunarfb@gmail.com",
+}
+
 TRAFFIC_FIELDS = [
     "traffic.created_timeframe",
     "traffic.page_url_from",
@@ -281,8 +292,15 @@ def sync_wix_connection(db: Session, connection: WixConnection, force_full_backf
                         created_date = submission.get("createdDate")
                         if not wix_submission_id or not created_date or wix_submission_id in seen_submission_ids:
                             continue
-                        seen_submission_ids.add(wix_submission_id)
                         answers = submission.get("submissions", {}) or {}
+                        email = (answers.get(email_target) if email_target else None) or None
+                        if email and email.strip().lower() in EXCLUDED_SUBMISSION_EMAILS:
+                            # Left out of seen_submission_ids too (not just
+                            # submission_values) so reconciliation below
+                            # purges it as "missing" if an earlier sync,
+                            # before this filter existed, already stored it.
+                            continue
+                        seen_submission_ids.add(wix_submission_id)
                         first = answers.get(first_name_target) if first_name_target else None
                         last = answers.get(last_name_target) if last_name_target else None
                         contact_name = " ".join(p for p in (first, last) if p) or None
@@ -294,7 +312,7 @@ def sync_wix_connection(db: Session, connection: WixConnection, force_full_backf
                                 "submitted_at": datetime.fromisoformat(created_date.replace("Z", "+00:00")),
                                 "form_name": form_name,
                                 "contact_name": contact_name,
-                                "contact_email": answers.get(email_target) if email_target else None,
+                                "contact_email": email,
                                 "status": submission.get("status"),
                                 "fields": answers,
                                 "raw_payload": submission,
