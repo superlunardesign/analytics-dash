@@ -56,6 +56,17 @@ class TikTokAPIError(RuntimeError):
         self.payload = payload or {}
 
 
+class TikTokRateLimitError(TikTokAPIError):
+    """Raised on a 429 / error.code == "rate_limit_exceeded" response.
+    Confirmed live against a sandbox app's first real sync -- sandbox apps
+    appear to get a notably tight quota. Distinguished from other API
+    errors so a sync run can report this as "try again shortly" rather
+    than a hard failure, same as InstagramRateLimitError."""
+
+
+_RATE_LIMIT_ERROR_CODES = {"rate_limit_exceeded"}
+
+
 def _safe_json(resp: httpx.Response) -> dict | None:
     try:
         return resp.json()
@@ -72,14 +83,22 @@ class TikTokClient:
         headers = {"Authorization": f"Bearer {self.access_token}", "Content-Type": "application/json"}
         resp = httpx.request(method, url, headers=headers, params=params, json=json, timeout=30)
         if resp.status_code >= 400:
+            body = _safe_json(resp)
+            error = (body or {}).get("error") or {}
+            if resp.status_code == 429 or error.get("code") in _RATE_LIMIT_ERROR_CODES:
+                raise TikTokRateLimitError(
+                    f"TikTok API rate limit hit on {method} {path}: {resp.text[:2000]}", payload=body
+                )
             raise TikTokAPIError(
                 f"TikTok API error on {method} {path} (status {resp.status_code}): {resp.text[:2000]}",
-                payload=_safe_json(resp),
+                payload=body,
             )
         parsed = _safe_json(resp)
         if parsed is None:
             raise TikTokAPIError(f"TikTok API returned a non-JSON 2xx body on {method} {path}: {resp.text[:2000]!r}")
         error = parsed.get("error") or {}
+        if error.get("code") in _RATE_LIMIT_ERROR_CODES:
+            raise TikTokRateLimitError(f"TikTok API rate limit hit on {method} {path}: {error}", payload=parsed)
         if error.get("code") not in (None, "", "ok"):
             raise TikTokAPIError(f"TikTok API error on {method} {path}: {error}", payload=parsed)
         return parsed
