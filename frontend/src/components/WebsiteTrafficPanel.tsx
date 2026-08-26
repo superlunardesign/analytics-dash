@@ -94,8 +94,11 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
   const [formSchemas, setFormSchemas] = useState<FormSchema[]>([]);
   const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null);
   const [selectedForms, setSelectedForms] = useState<Set<string> | null>(null);
+  // Sessions only by default -- views/visitors are one click away via the
+  // toggle chips, but starting with all three on made the chart busier
+  // than needed for the common case.
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(
-    () => new Set(METRIC_CONFIG.map((m) => m.key))
+    () => new Set(["sessions"])
   );
   const [dataLoading, setDataLoading] = useState(false);
 

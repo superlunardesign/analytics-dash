@@ -97,6 +97,10 @@ def list_posts(
             (latest_snapshot.post_id == latest_per_post.c.post_id)
             & (latest_snapshot.captured_at == latest_per_post.c.captured_at),
         )
+        # Stories expire on Instagram after 24h and aren't meaningful
+        # long-term content to track alongside Feed/Reels performance --
+        # excluded everywhere in this dashboard, not just the default view.
+        .filter(Post.media_product_type != "STORY")
     )
 
     if platform:

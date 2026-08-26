@@ -10,7 +10,9 @@ import type { AccountStatus, Post, PostDetail, SortField, SyncRun } from "./type
 
 const DATE_FILTER_WINDOW_DAYS = 3;
 
-const MEDIA_PRODUCT_TYPES = ["FEED", "REELS", "STORY"];
+// STORY is excluded dashboard-wide (see backend/app/api/posts.py) --
+// expired 24h-later, not meaningful to track alongside Feed/Reels.
+const MEDIA_PRODUCT_TYPES = ["FEED", "REELS"];
 
 function App() {
   const [status, setStatus] = useState<AccountStatus | null>(null);
