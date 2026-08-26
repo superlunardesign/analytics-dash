@@ -67,25 +67,39 @@ def _safe_json(resp: httpx.Response) -> dict | None:
 class TikTokClient:
     access_token: str
 
-    def _post(self, path: str, params: dict | None = None, json: dict | None = None) -> dict:
+    def _request(self, method: str, path: str, params: dict | None = None, json: dict | None = None) -> dict:
         url = f"{API_BASE_URL}{path}"
         headers = {"Authorization": f"Bearer {self.access_token}", "Content-Type": "application/json"}
-        resp = httpx.post(url, headers=headers, params=params, json=json or {}, timeout=30)
+        resp = httpx.request(method, url, headers=headers, params=params, json=json, timeout=30)
         if resp.status_code >= 400:
             raise TikTokAPIError(
-                f"TikTok API error on POST {path} (status {resp.status_code}): {resp.text[:2000]}",
+                f"TikTok API error on {method} {path} (status {resp.status_code}): {resp.text[:2000]}",
                 payload=_safe_json(resp),
             )
         parsed = _safe_json(resp)
         if parsed is None:
-            raise TikTokAPIError(f"TikTok API returned a non-JSON 2xx body on POST {path}: {resp.text[:2000]!r}")
+            raise TikTokAPIError(f"TikTok API returned a non-JSON 2xx body on {method} {path}: {resp.text[:2000]!r}")
         error = parsed.get("error") or {}
         if error.get("code") not in (None, "", "ok"):
-            raise TikTokAPIError(f"TikTok API error on POST {path}: {error}", payload=parsed)
+            raise TikTokAPIError(f"TikTok API error on {method} {path}: {error}", payload=parsed)
         return parsed
 
+    def _get(self, path: str, params: dict | None = None) -> dict:
+        return self._request("GET", path, params=params)
+
+    def _post(self, path: str, params: dict | None = None, json: dict | None = None) -> dict:
+        return self._request("POST", path, params=params, json=json or {})
+
     def get_profile(self) -> dict:
-        resp = self._post("/v2/user/info/", params={"fields": "open_id,display_name,username"})
+        # Confirmed live (2026-08-26): this endpoint is GET, not POST -- a
+        # POST here 404s with "Unsupported path(Janus)". "username" was
+        # also dropped from the requested fields -- per TikTok's docs
+        # (not independently confirmed live) it isn't valid under
+        # user.info.basic scope, only open_id/display_name/avatar_url/
+        # bio_description/union_id/profile_deep_link are -- there's no
+        # @handle available at this scope tier, so account.username falls
+        # back to display_name in api/tiktok.py.
+        resp = self._get("/v2/user/info/", params={"fields": "open_id,display_name,avatar_url"})
         return resp.get("data", {}).get("user", {})
 
     def list_videos(self, cursor: str | None = None, max_count: int = 20) -> dict:

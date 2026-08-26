@@ -64,7 +64,10 @@ def oauth_callback(
     if account is None:
         account = Account(platform=Platform.TIKTOK, external_account_id=external_account_id)
 
-    account.username = profile.get("username")
+    # TikTok's user.info.basic scope doesn't expose the @handle -- only
+    # display_name -- so that's what both fields fall back to (see
+    # client.py's get_profile docstring).
+    account.username = profile.get("display_name")
     account.display_name = profile.get("display_name")
     account.access_token_encrypted = encrypt_token(token.access_token)
     if token.refresh_token:
