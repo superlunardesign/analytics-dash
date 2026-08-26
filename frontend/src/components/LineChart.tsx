@@ -56,6 +56,20 @@ function defaultFormat(v: number): string {
   return String(v);
 }
 
+// Right-axis (forms) series are always dashed, left-axis (traffic metrics)
+// always solid -- a second way to tell series apart beyond color, since
+// the two palettes are assigned independently and can land on the same
+// color (e.g. a form and a metric both landing on violet).
+const DASH_PATTERN = "5,4";
+
+function LegendSwatch({ color, dashed }: { color: string; dashed?: boolean }) {
+  return (
+    <svg width={14} height={4} style={{ flexShrink: 0 }} aria-hidden>
+      <line x1={0} y1={2} x2={14} y2={2} stroke={color} strokeWidth={2} strokeDasharray={dashed ? DASH_PATTERN : undefined} />
+    </svg>
+  );
+}
+
 export function LineChart({
   dates,
   series,
@@ -216,7 +230,16 @@ export function LineChart({
 
         {/* Lines */}
         {plot.seriesPaths.map((s) => (
-          <path key={s.key} d={s.path} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+          <path
+            key={s.key}
+            d={s.path}
+            fill="none"
+            stroke={s.color}
+            strokeWidth={2}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            strokeDasharray={s.axis === "right" ? DASH_PATTERN : undefined}
+          />
         ))}
 
         {/* Hover crosshair + dots */}
@@ -262,7 +285,7 @@ export function LineChart({
             const v = s.values[hoverIndex];
             return (
               <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ display: "inline-block", width: 10, height: 2, background: s.color }} />
+                <LegendSwatch color={s.color} dashed={s.axis === "right"} />
                 <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{v == null ? "—" : format(v)}</span>
                 <span style={{ color: "var(--text-secondary)" }}>{s.label}</span>
               </div>
@@ -276,7 +299,7 @@ export function LineChart({
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 6 }}>
           {series.map((s) => (
             <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--text-secondary)" }}>
-              <span style={{ display: "inline-block", width: 10, height: 2, background: s.color }} />
+              <LegendSwatch color={s.color} dashed={s.axis === "right"} />
               {s.label}
             </div>
           ))}
