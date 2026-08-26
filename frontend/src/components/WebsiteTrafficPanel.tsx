@@ -575,13 +575,14 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
             <tbody>
               {trafficSources.map((s) => (
                 <tr
-                  key={`${s.referrer_category}-${s.referrer_source}-${s.utm_campaign_id}`}
+                  key={`${s.referrer_category}-${s.referrer_source}-${s.utm_campaign_id}-${s.utm_medium}`}
                   style={{ borderBottom: "1px solid var(--gridline)" }}
                 >
                   <td style={{ padding: "6px 0", color: "var(--text-primary)" }}>
                     {s.referrer_source || s.referrer_category || "Unknown"}
                     <div style={{ color: "var(--text-muted)", fontSize: 11, marginTop: 2 }}>
                       {s.referrer_category}
+                      {s.utm_medium && ` · ${s.utm_medium}`}
                       {s.utm_campaign_id && ` · campaign ${s.utm_campaign_id}`}
                     </div>
                   </td>

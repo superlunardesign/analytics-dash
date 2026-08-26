@@ -167,20 +167,29 @@ def get_post(post_id: str, db: Session = Depends(get_db)) -> PostDetailOut:
     )
 
 
+# Media types with no real API-provided source for profile visits / bio
+# link taps / follows -- Instagram's API never returns these for Reels at
+# all (see app/integrations/instagram/client.py), and TikTok's Display
+# API doesn't expose them for any post (see
+# app/integrations/tiktok/client.py) -- so manual entry is the only way
+# to record them for either. Feed posts already get real synced values
+# and aren't included here.
+_MANUAL_OVERRIDE_MEDIA_TYPES = {"REELS", "TIKTOK"}
+
+
 @router.put("/{post_id}/manual-metrics", response_model=PostDetailOut)
 def set_manual_metrics(post_id: str, payload: ManualMetricsIn, db: Session = Depends(get_db)) -> PostDetailOut:
     """Manually corrects profile visits / bio link taps / follows for a
-    Reel -- Instagram's API never returns these for Reels at all (see
-    app/integrations/instagram/client.py), so this is the only way to
-    record them, e.g. from what's visible in Instagram's own app.
-    Restricted to Reels since that's the only case where the API has
-    nothing to offer; feed posts already get real synced values.
-    """
+    post whose platform API has no real source for them -- see
+    _MANUAL_OVERRIDE_MEDIA_TYPES."""
     post = db.query(Post).filter(Post.id == post_id).one_or_none()
     if post is None:
         raise HTTPException(status_code=404, detail="Post not found")
-    if (post.media_product_type or "").upper() != "REELS":
-        raise HTTPException(status_code=400, detail="Manual metric overrides are only supported for Reels")
+    if (post.media_product_type or "").upper() not in _MANUAL_OVERRIDE_MEDIA_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Manual metric overrides are only supported for {', '.join(sorted(_MANUAL_OVERRIDE_MEDIA_TYPES))} posts",
+        )
 
     post.manual_profile_visits = payload.profile_visits
     post.manual_bio_link_taps = payload.bio_link_taps

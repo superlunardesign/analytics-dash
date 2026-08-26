@@ -94,11 +94,12 @@ export interface TopPage {
 
 export interface TrafficSource {
   // referrer_category/source cover every visit (including "direct");
-  // utm_campaign_id is only set for visits that arrived via a tagged ad
-  // campaign link.
+  // utm_campaign_id/utm_medium are only set for visits that arrived via a
+  // tagged campaign link.
   referrer_category: string | null;
   referrer_source: string | null;
   utm_campaign_id: string | null;
+  utm_medium: string | null;
   sessions: number;
   views: number;
   visitors: number;

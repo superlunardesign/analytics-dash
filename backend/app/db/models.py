@@ -243,14 +243,17 @@ class WebsiteTrafficSource(Base):
     grain.
 
     referrer_category/source cover every visit (categorizes even "direct"
-    traffic), while utm_campaign_id is Wix's own attributed ad campaign ID
-    and is null for anything that didn't arrive via a tagged campaign link
-    -- confirmed live against the real site: populated for paid_ads traffic,
-    "_" (stored as null here) for everything else. Most of the *other* raw
-    UTM dimensions the semantic model exposes (utm_medium, utm_content,
-    utm_term, utm_campaign_source, utm_multichannelcampaign) are flagged
-    "do not use" in Wix's own field metadata and are deliberately not
-    pulled in here.
+    traffic), while utm_campaign_id/utm_medium are null for anything that
+    didn't arrive via a tagged campaign link -- confirmed live against the
+    real site: populated for paid_ads/tagged traffic, "_" (stored as null
+    here) for everything else. utm_medium in particular carries real,
+    meaningful values here (social/paid/mail/organic/newsletter) despite
+    Wix's own field metadata flagging it "do not use" -- that warning
+    turned out to be overly cautious rather than a sign the field is
+    empty, confirmed by actually querying it live rather than trusting
+    the doc note at face value. The *other* raw UTM dimensions the
+    semantic model exposes (utm_content, utm_term, utm_campaign_source,
+    utm_multichannelcampaign) are still deliberately not pulled in here.
     """
 
     __tablename__ = "website_traffic_sources"
@@ -261,6 +264,7 @@ class WebsiteTrafficSource(Base):
             "referrer_category",
             "referrer_source",
             "utm_campaign_id",
+            "utm_medium",
             name="uq_traffic_source_connection_date_source",
         ),
     )
@@ -271,6 +275,7 @@ class WebsiteTrafficSource(Base):
     referrer_category: Mapped[str | None] = mapped_column(String, nullable=True)
     referrer_source: Mapped[str | None] = mapped_column(String, nullable=True)
     utm_campaign_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    utm_medium: Mapped[str | None] = mapped_column(String, nullable=True)
 
     sessions: Mapped[int | None] = mapped_column(Integer, nullable=True)
     views: Mapped[int | None] = mapped_column(Integer, nullable=True)

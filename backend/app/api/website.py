@@ -114,8 +114,9 @@ def traffic_sources(
 ) -> list[TrafficSourceOut]:
     """Aggregated breakdown of sessions/views/visitors by where traffic
     came from -- referrer_category/source cover every visit (including
-    "direct"); utm_campaign_id is only populated for visits that arrived
-    via a tagged ad campaign link (null otherwise, see wix_sync.py)."""
+    "direct"); utm_campaign_id/utm_medium are only populated for visits
+    that arrived via a tagged campaign link (null otherwise, see
+    wix_sync.py)."""
     connection = _current_connection(db)
 
     rows = (
@@ -123,6 +124,7 @@ def traffic_sources(
             WebsiteTrafficSource.referrer_category,
             WebsiteTrafficSource.referrer_source,
             WebsiteTrafficSource.utm_campaign_id,
+            WebsiteTrafficSource.utm_medium,
             func.sum(WebsiteTrafficSource.sessions).label("sessions"),
             func.sum(WebsiteTrafficSource.views).label("views"),
             func.sum(WebsiteTrafficSource.visitors).label("visitors"),
@@ -136,6 +138,7 @@ def traffic_sources(
             WebsiteTrafficSource.referrer_category,
             WebsiteTrafficSource.referrer_source,
             WebsiteTrafficSource.utm_campaign_id,
+            WebsiteTrafficSource.utm_medium,
         )
         .order_by(func.sum(WebsiteTrafficSource.sessions).desc())
         .limit(limit)
@@ -146,6 +149,7 @@ def traffic_sources(
             referrer_category=row.referrer_category,
             referrer_source=row.referrer_source,
             utm_campaign_id=row.utm_campaign_id,
+            utm_medium=row.utm_medium,
             sessions=row.sessions or 0,
             views=row.views or 0,
             visitors=row.visitors or 0,

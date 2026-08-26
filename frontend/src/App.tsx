@@ -22,7 +22,7 @@ const DATE_FILTER_WINDOW_DAYS = 3;
 
 // STORY is excluded dashboard-wide (see backend/app/api/posts.py) --
 // expired 24h-later, not meaningful to track alongside Feed/Reels.
-const MEDIA_PRODUCT_TYPES = ["FEED", "REELS", "VIDEO"];
+const MEDIA_PRODUCT_TYPES = ["FEED", "REELS", "TIKTOK"];
 
 function App() {
   const [status, setStatus] = useState<AccountStatus | null>(null);

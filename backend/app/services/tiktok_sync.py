@@ -134,8 +134,12 @@ def sync_tiktok_account(db: Session, account: Account) -> SyncRun:
                 if post is None:
                     post = Post(account_id=account.id, platform=Platform.TIKTOK, external_media_id=external_id)
 
+                # media_type stays a content-format label (all TikTok posts
+                # are video); media_product_type is what the dashboard
+                # actually displays as the badge/filter value, so that's
+                # "TIKTOK" rather than the generic "VIDEO".
                 post.media_type = "VIDEO"
-                post.media_product_type = "VIDEO"
+                post.media_product_type = "TIKTOK"
                 post.caption = item.get("title") or item.get("video_description")
                 post.permalink = item.get("share_url")
                 post.thumbnail_url = item.get("cover_image_url")
@@ -150,6 +154,8 @@ def sync_tiktok_account(db: Session, account: Account) -> SyncRun:
                     likes=item.get("like_count"),
                     comments=item.get("comment_count"),
                     shares=item.get("share_count"),
+                    # TikTok's "save"/bookmark equivalent (see client.py).
+                    saves=item.get("collect_count"),
                     other_metrics={"duration_sec": item.get("duration")},
                 )
                 db.add(snapshot)

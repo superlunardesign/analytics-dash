@@ -34,6 +34,7 @@ class TrafficSourceOut(BaseModel):
     referrer_category: str | None
     referrer_source: str | None
     utm_campaign_id: str | None
+    utm_medium: str | None
     sessions: int
     views: int
     visitors: int

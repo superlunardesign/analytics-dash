@@ -35,7 +35,11 @@ const METRIC_ROWS: { key: keyof NonNullable<PostDetail["latest_metrics"]>; label
 ];
 
 export function PostDetailDrawer({ post, loading, onClose, onSaved }: PostDetailDrawerProps) {
-  const isReel = (post?.media_product_type ?? "").toUpperCase() === "REELS";
+  // Neither Instagram's API (for Reels) nor TikTok's Display API (for any
+  // post) returns profile visits / bio link taps / follows -- see
+  // app/api/posts.py's _MANUAL_OVERRIDE_MEDIA_TYPES on the backend.
+  const mediaProductType = (post?.media_product_type ?? "").toUpperCase();
+  const supportsManualOverrides = mediaProductType === "REELS" || mediaProductType === "TIKTOK";
 
   const [profileVisits, setProfileVisits] = useState("");
   const [bioLinkTaps, setBioLinkTaps] = useState("");
@@ -228,14 +232,15 @@ export function PostDetailDrawer({ post, loading, onClose, onSaved }: PostDetail
               </tbody>
             </table>
 
-            {isReel && (
+            {supportsManualOverrides && (
               <>
                 <h3 style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>
                   Manual overrides
                 </h3>
                 <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10 }}>
-                  Instagram's API doesn't return profile visits, bio link taps, or follows for
-                  Reels. Enter what Instagram's own app shows for this Reel to track it here.
+                  {mediaProductType === "TIKTOK"
+                    ? "TikTok's API doesn't return profile visits, bio link taps, or follows for any post. Enter what TikTok's own app shows for this video to track it here."
+                    : "Instagram's API doesn't return profile visits, bio link taps, or follows for Reels. Enter what Instagram's own app shows for this Reel to track it here."}
                 </p>
                 <div style={{ display: "grid", gap: 8, marginBottom: 10 }}>
                   <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>

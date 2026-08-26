@@ -89,15 +89,20 @@ TRAFFIC_FIELDS = [
 TRAFFIC_FILTERS = [{"field": "timeframeGranularity", "condition": "EQUAL", "values": ["DAY"]}]
 
 # Same traffic model as TRAFFIC_FIELDS, dimensioned by source instead of
-# page. referrer_category/source cover every visit (even "direct"); most
-# of the model's other raw UTM dimensions are flagged "do not use" in
-# Wix's own field metadata (confirmed live) and are deliberately excluded
-# -- only utm_campaign_id (populated for tagged ad campaigns) is included.
+# page. referrer_category/source cover every visit (even "direct").
+# utm_campaign_id/utm_medium are included since both carry real, populated
+# data on the reference site (confirmed live, including after utm_medium
+# was re-checked despite Wix's own field metadata flagging it "do not
+# use" -- that warning proved overly cautious, not a sign of empty data).
+# The remaining raw UTM dimensions (utm_content, utm_term,
+# utm_campaign_source, utm_multichannelcampaign) are still deliberately
+# excluded.
 TRAFFIC_SOURCE_FIELDS = [
     "traffic.created_timeframe",
     "traffic.referrer_category_name",
     "traffic.referrer_source_name",
     "traffic.utm_campaign_id",
+    "traffic.utm_medium",
     "traffic.sessions_count",
     "traffic.views_count",
     "traffic.visitors_count",
@@ -185,7 +190,7 @@ def _upsert_traffic_rows(db: Session, rows: list[dict]) -> None:
 def _upsert_traffic_source_rows(db: Session, rows: list[dict]) -> None:
     """Same upsert-over-plain-insert reasoning as _upsert_traffic_rows,
     keyed on (connection_id, date, referrer_category, referrer_source,
-    utm_campaign_id) instead of (date, page_path)."""
+    utm_campaign_id, utm_medium) instead of (date, page_path)."""
     if not rows:
         return
     table = WebsiteTrafficSource.__table__
@@ -194,7 +199,14 @@ def _upsert_traffic_source_rows(db: Session, rows: list[dict]) -> None:
     stmt = insert_fn(table).values(rows)
     update_cols = {col: stmt.excluded[col] for col in ("sessions", "views", "visitors", "raw_payload")}
     stmt = stmt.on_conflict_do_update(
-        index_elements=["connection_id", "date", "referrer_category", "referrer_source", "utm_campaign_id"],
+        index_elements=[
+            "connection_id",
+            "date",
+            "referrer_category",
+            "referrer_source",
+            "utm_campaign_id",
+            "utm_medium",
+        ],
         set_=update_cols,
     )
     db.execute(stmt)
@@ -308,7 +320,7 @@ def sync_wix_connection(db: Session, connection: WixConnection, force_full_backf
                 WebsiteTrafficSource.connection_id == connection.id,
                 WebsiteTrafficSource.date >= start,
             ).delete()
-            seen_source_keys: set[tuple[str, str | None, str | None, str | None]] = set()
+            seen_source_keys: set[tuple[str, str | None, str | None, str | None, str | None]] = set()
             duplicate_source_rows = 0
             source_values: list[dict] = []
             for row in source_rows:
@@ -321,7 +333,10 @@ def sync_wix_connection(db: Session, connection: WixConnection, force_full_backf
                 utm_campaign_id = cell_value(fields.get("traffic.utm_campaign_id"))
                 if utm_campaign_id == _NO_UTM_CAMPAIGN:
                     utm_campaign_id = None
-                key = (date_str, referrer_category, referrer_source, utm_campaign_id)
+                utm_medium = cell_value(fields.get("traffic.utm_medium"))
+                if utm_medium == _NO_UTM_CAMPAIGN:
+                    utm_medium = None
+                key = (date_str, referrer_category, referrer_source, utm_campaign_id, utm_medium)
                 if key in seen_source_keys:
                     duplicate_source_rows += 1
                     continue
@@ -333,6 +348,7 @@ def sync_wix_connection(db: Session, connection: WixConnection, force_full_backf
                         "referrer_category": referrer_category,
                         "referrer_source": referrer_source,
                         "utm_campaign_id": utm_campaign_id,
+                        "utm_medium": utm_medium,
                         "sessions": cell_value(fields.get("traffic.sessions_count")),
                         "views": cell_value(fields.get("traffic.views_count")),
                         "visitors": cell_value(fields.get("traffic.visitors_count")),

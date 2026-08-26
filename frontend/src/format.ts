@@ -49,6 +49,7 @@ const MEDIA_TYPE_COLORS: Record<string, string> = {
   FEED: "var(--series-blue)",
   STORY: "var(--series-orange)",
   AD: "var(--series-red)",
+  TIKTOK: "var(--series-magenta)",
 };
 
 export function mediaTypeColor(mediaProductType: string | null): string {

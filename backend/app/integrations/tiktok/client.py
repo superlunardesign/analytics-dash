@@ -47,6 +47,10 @@ VIDEO_FIELDS = [
     "like_count",
     "comment_count",
     "share_count",
+    # TikTok's "save"/bookmark equivalent -- named collect_count, not
+    # save_count (per public docs; not independently confirmed live yet,
+    # same caveat as the rest of this module).
+    "collect_count",
 ]
 
 
