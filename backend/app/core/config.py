@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     # that incoming webhook JWTs actually came from Wix.
     wix_webhook_public_key: str = ""
 
+    # TikTok Login Kit + Content API (video performance)
+    # Create at https://developers.tiktok.com/apps
+    tiktok_client_key: str = ""
+    tiktok_client_secret: str = ""
+    # Must exactly match a redirect URI registered on the TikTok app.
+    tiktok_redirect_uri: str = "http://localhost:8000/api/tiktok/oauth/callback"
+
 
 @lru_cache
 def get_settings() -> Settings:

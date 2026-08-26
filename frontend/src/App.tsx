@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getInstagramStatus, getPost, instagramOAuthStartUrl, listPosts, setPostSaved, triggerInstagramSync } from "./api";
+import {
+  getInstagramStatus,
+  getPost,
+  getTikTokStatus,
+  instagramOAuthStartUrl,
+  listPosts,
+  setPostSaved,
+  tiktokOAuthStartUrl,
+  triggerInstagramSync,
+  triggerTikTokSync,
+} from "./api";
 import { ConnectBar } from "./components/ConnectBar";
 import { PostDetailDrawer } from "./components/PostDetailDrawer";
 import { PostsTable } from "./components/PostsTable";
@@ -12,13 +22,18 @@ const DATE_FILTER_WINDOW_DAYS = 3;
 
 // STORY is excluded dashboard-wide (see backend/app/api/posts.py) --
 // expired 24h-later, not meaningful to track alongside Feed/Reels.
-const MEDIA_PRODUCT_TYPES = ["FEED", "REELS"];
+const MEDIA_PRODUCT_TYPES = ["FEED", "REELS", "VIDEO"];
 
 function App() {
   const [status, setStatus] = useState<AccountStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<SyncRun | null>(null);
+
+  const [tiktokStatus, setTiktokStatus] = useState<AccountStatus | null>(null);
+  const [tiktokStatusLoading, setTiktokStatusLoading] = useState(true);
+  const [tiktokSyncing, setTiktokSyncing] = useState(false);
+  const [tiktokLastSync, setTiktokLastSync] = useState<SyncRun | null>(null);
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(true);
@@ -62,6 +77,15 @@ function App() {
     }
   }, []);
 
+  const refreshTiktokStatus = useCallback(async () => {
+    setTiktokStatusLoading(true);
+    try {
+      setTiktokStatus(await getTikTokStatus());
+    } finally {
+      setTiktokStatusLoading(false);
+    }
+  }, []);
+
   const refreshPosts = useCallback(async () => {
     setPostsLoading(true);
     try {
@@ -92,17 +116,26 @@ function App() {
   }, [refreshStatus]);
 
   useEffect(() => {
+    refreshTiktokStatus();
+  }, [refreshTiktokStatus]);
+
+  useEffect(() => {
     refreshPosts();
   }, [refreshPosts]);
 
-  // Pick up ?connected=instagram after the OAuth redirect and refresh state.
+  // Pick up ?connected=instagram|tiktok after the OAuth redirect and
+  // refresh whichever platform's status just changed.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("connected") === "instagram") {
+    const connected = params.get("connected");
+    if (connected === "instagram") {
       refreshStatus();
       window.history.replaceState({}, "", window.location.pathname);
+    } else if (connected === "tiktok") {
+      refreshTiktokStatus();
+      window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [refreshStatus]);
+  }, [refreshStatus, refreshTiktokStatus]);
 
   const handleSort = (field: SortField) => {
     if (field === sortBy) {
@@ -123,6 +156,19 @@ function App() {
       alert(err instanceof Error ? err.message : "Sync failed");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleTiktokSync = async () => {
+    setTiktokSyncing(true);
+    try {
+      const run = await triggerTikTokSync();
+      setTiktokLastSync(run);
+      await refreshPosts();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setTiktokSyncing(false);
     }
   };
 
@@ -172,12 +218,23 @@ function App() {
       </header>
 
       <ConnectBar
+        platformLabel="Instagram"
         status={status}
         loading={statusLoading}
         syncing={syncing}
         lastSync={lastSync}
         onConnect={() => (window.location.href = instagramOAuthStartUrl())}
         onSync={handleSync}
+      />
+
+      <ConnectBar
+        platformLabel="TikTok"
+        status={tiktokStatus}
+        loading={tiktokStatusLoading}
+        syncing={tiktokSyncing}
+        lastSync={tiktokLastSync}
+        onConnect={() => (window.location.href = tiktokOAuthStartUrl())}
+        onSync={handleTiktokSync}
       />
 
       <div style={{ margin: "4px 0 16px" }}>

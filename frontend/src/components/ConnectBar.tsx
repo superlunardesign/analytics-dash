@@ -1,6 +1,7 @@
 import type { AccountStatus, SyncRun } from "../types";
 
 interface ConnectBarProps {
+  platformLabel: string;
   status: AccountStatus | null;
   loading: boolean;
   syncing: boolean;
@@ -9,7 +10,7 @@ interface ConnectBarProps {
   onSync: () => void;
 }
 
-export function ConnectBar({ status, loading, syncing, lastSync, onConnect, onSync }: ConnectBarProps) {
+export function ConnectBar({ platformLabel, status, loading, syncing, lastSync, onConnect, onSync }: ConnectBarProps) {
   return (
     <div style={{ padding: "12px 0" }}>
       <div
@@ -37,7 +38,7 @@ export function ConnectBar({ status, loading, syncing, lastSync, onConnect, onSy
               ? "Checking connection…"
               : status?.connected
                 ? `Connected as @${status.username ?? "unknown"}`
-                : "Instagram not connected"}
+                : `${platformLabel} not connected`}
           </span>
           {lastSync && (
             <span style={{ color: "var(--text-muted)", fontSize: 13 }}>
@@ -62,7 +63,7 @@ export function ConnectBar({ status, loading, syncing, lastSync, onConnect, onSy
                 cursor: "pointer",
               }}
             >
-              Connect Instagram
+              Connect {platformLabel}
             </button>
           )}
           {status?.connected && (

@@ -28,6 +28,17 @@ class TopPageOut(BaseModel):
     views: int
 
 
+class TrafficSourceOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    referrer_category: str | None
+    referrer_source: str | None
+    utm_campaign_id: str | None
+    sessions: int
+    views: int
+    visitors: int
+
+
 class FormSubmissionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

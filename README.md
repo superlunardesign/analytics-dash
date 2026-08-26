@@ -1,14 +1,19 @@
 # Analytics Dashboard
 
-Pulls your Instagram post performance (views, likes, comments, saves, shares,
-watch time, profile visits, and bio-link taps attributed to each post) into
-one sortable, filterable dashboard, and correlates it with your Wix site's
-traffic and form submissions (project applications) -- click a point on the
-traffic chart to filter your posts to whatever you published around that
-date. Built to grow into TikTok later -- the database schema already has
-room for it (see `backend/app/db/models.py` and
-`backend/app/integrations/tiktok/`), but only Instagram and Wix are wired up
-right now.
+Pulls your Instagram and TikTok post performance (views, likes, comments,
+saves, shares, watch time, profile visits, and bio-link taps attributed to
+each post) into one sortable, filterable dashboard, and correlates it with
+your Wix site's traffic and form submissions (project applications) -- click
+a point on the traffic chart to filter your posts to whatever you published
+around that date. Threads isn't wired up yet -- the database schema already
+has room for it (`Platform` enum in `backend/app/db/models.py`), same shape
+TikTok was added in.
+
+Note: the TikTok integration (`backend/app/integrations/tiktok/`) was built
+from TikTok's public docs via web search rather than a live-verified call --
+direct fetch of developers.tiktok.com is blocked in the environment this was
+built in. Treat the first real sync as the actual test; see that module's
+docstrings if something 400s.
 
 ```
 backend/    FastAPI API + sync worker (Python)
@@ -19,15 +24,16 @@ render.yaml Render Blueprint: Postgres + API + cron sync job + static site
 ## How it fits together
 
 - **`analytics-dash-api`** (Render Web Service) serves the REST API the
-  dashboard calls, handles the Instagram OAuth redirect, and receives the
-  Wix "App Instance Installed" webhook.
+  dashboard calls, handles the Instagram and TikTok OAuth redirects, and
+  receives the Wix "App Instance Installed" webhook.
 - **`analytics-dash-sync`** (Render Cron Job) runs every few hours, pulls
-  fresh data for every connected Instagram account and Wix site. For
-  Instagram it stores a new metrics *snapshot* per post (Instagram only
-  gives current totals, not history, so this is what lets the dashboard
-  show trends later instead of just current values). For Wix it re-syncs a
-  rolling window of recent traffic/form-submission data (older days don't
-  change, so it doesn't re-fetch everything every time).
+  fresh data for every connected Instagram account, TikTok account, and
+  Wix site. For Instagram and TikTok it stores a new metrics *snapshot*
+  per post each run (neither API gives history, only current totals, so
+  this is what lets the dashboard show trends later instead of just
+  current values). For Wix it re-syncs a rolling window of recent
+  traffic/form-submission data (older days don't change, so it doesn't
+  re-fetch everything every time).
 - **`analytics-dash-frontend`** (Render Static Site) is the dashboard UI.
 - **`analytics-dash-db`** (Render Postgres) holds everything.
 
@@ -98,7 +104,34 @@ result purely via a webhook.
    dashboard tab and refresh to see the connected status (the backend
    already has it via the webhook regardless of where the browser ends up).
 
-## 3. Deploy to Render
+## 3. Create a TikTok developer app (one-time, optional)
+
+Skip this section if you don't want the TikTok side.
+
+1. Go to [developers.tiktok.com/apps](https://developers.tiktok.com/apps) and
+   create a new app.
+2. Add the **Login Kit** product, and under its settings request these
+   scopes:
+   - `user.info.basic` -- profile (display name, username).
+   - `video.list` -- your own posted videos and their view/like/comment/
+     share counts.
+3. Note the app's **Client Key** and **Client Secret** -- these become
+   `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET`.
+4. Add a redirect URI. Locally this is
+   `http://localhost:8000/api/tiktok/oauth/callback`; on Render it'll be
+   `https://<your-api-service>.onrender.com/api/tiktok/oauth/callback` (add
+   it once you have the real Render URL after the first deploy).
+5. TikTok requires the account being authorized to be a **Business** or
+   **Creator** account (TikTok app → Settings → Account → Switch to
+   Business/Creator Account) for video-list API access.
+6. Since this app only ever authorizes its own owner's account, TikTok's
+   app review process for public distribution shouldn't be required --
+   check the app dashboard for whether it needs to be moved out of
+   "Sandbox"/development mode to authorize your own account; if so, follow
+   whatever TikTok's dashboard prompts for that (this wasn't verified live,
+   see the note at the top of this README).
+
+## 4. Deploy to Render
 
 1. Push this repo to GitHub/GitLab and create a new **Blueprint** in Render
    pointing at it -- Render will read `render.yaml` and provision the
@@ -106,9 +139,10 @@ result purely via a webhook.
 2. Generate an encryption key locally:
    `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
 3. On **both** the `analytics-dash-api` service and the `analytics-dash-sync`
-   cron job (Environment tab on each), set the same three values:
+   cron job (Environment tab on each), set the same values:
    - `TOKEN_ENCRYPTION_KEY` -- the key from step 2
    - `META_APP_ID` / `META_APP_SECRET` -- from step 1
+   - If using TikTok: `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` -- from step 3
 
    These have to match exactly on both services, since they encrypt and
    decrypt the same stored OAuth tokens. (Render blueprints can't predefine
@@ -117,6 +151,8 @@ result purely via a webhook.
 4. On the `analytics-dash-api` service, also set:
    - `INSTAGRAM_REDIRECT_URI` = `https://<api-service>.onrender.com/api/instagram/oauth/callback`
      (and add this same URL to the Meta app's Valid OAuth Redirect URIs)
+   - If using TikTok: `TIKTOK_REDIRECT_URI` = `https://<api-service>.onrender.com/api/tiktok/oauth/callback`
+     (and add this same URL as the TikTok app's redirect URI)
    - `FRONTEND_BASE_URL` = `https://<frontend-service>.onrender.com`
    - If using Wix: `WIX_APP_ID`, `WIX_APP_SECRET`, `WIX_WEBHOOK_PUBLIC_KEY`
      from step 2 above
@@ -126,12 +162,13 @@ result purely via a webhook.
    - `VITE_API_BASE_URL` = `https://<api-service>.onrender.com`
 7. Redeploy the API and frontend services so the new env vars take effect,
    then open the frontend URL and click **Connect Instagram** (and, if
-   using Wix, install the Wix app on your site per step 2.5 above).
+   using Wix, install the Wix app on your site per step 2.5 above; if using
+   TikTok, click **Connect TikTok**).
 
 Note: Render has no free tier for cron jobs (~$1/month minimum on the
 cheapest paid plan); the API and static site do run on the free plan.
 
-## 4. Local development
+## 5. Local development
 
 Backend:
 
@@ -224,9 +261,24 @@ Callback URL at the tunnel's address while developing.
   new short-lived (4h) access token on every sync run using just
   `WIX_APP_ID`/`WIX_APP_SECRET`/the stored `instance_id`.
 
+## Notes on what's actually available from TikTok
+
+- Video performance (views/likes/comments/shares) comes straight off each
+  video object from `video.list` -- unlike Instagram, there's no separate
+  per-post insights call. There's also no equivalent of Instagram's
+  watch-time or profile-visit/bio-link-tap metrics available through this
+  API, so those columns show "--" for TikTok posts.
+- Access tokens last ~24h and are refreshed automatically using the stored
+  refresh token (~365 days) -- same `access_token_encrypted`/
+  `refresh_token_encrypted` columns on `Account` that Instagram uses.
+- See the caveat at the top of this README: the exact TikTok API shapes
+  used here haven't been confirmed against a live call.
+
 ## What's scaffolded but not built yet
 
-- **TikTok**: `backend/app/integrations/tiktok/client.py` documents the
-  intended shape. The `posts` / `post_metric_snapshots` tables are already
-  platform-agnostic (a `platform` column distinguishes Instagram from
-  TikTok rows), so no schema changes should be needed to add it.
+- **Threads**: no integration started. The `Platform` enum and the
+  `posts` / `post_metric_snapshots` tables are already platform-agnostic,
+  so no schema changes should be needed -- follow the same shape as
+  `backend/app/integrations/tiktok/` (oauth.py + client.py +
+  `services/<platform>_sync.py` + `api/<platform>.py`, wired into
+  `sync_cron.py` and `app/main.py`).

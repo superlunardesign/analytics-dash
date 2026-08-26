@@ -7,9 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.db.models import WebsiteDailyTraffic, WebsiteFormSubmission, WixConnection, WixFormSchema
+from app.db.models import WebsiteDailyTraffic, WebsiteFormSubmission, WebsiteTrafficSource, WixConnection, WixFormSchema
 from app.db.session import get_db
-from app.schemas.website import DailyTrafficOut, FormSchemaOut, FormSubmissionOut, TopPageOut
+from app.schemas.website import DailyTrafficOut, FormSchemaOut, FormSubmissionOut, TopPageOut, TrafficSourceOut
 
 router = APIRouter(prefix="/api/website", tags=["website"])
 
@@ -103,6 +103,55 @@ def top_pages(
         .all()
     )
     return [TopPageOut(page_path=row.page_path, sessions=row.sessions or 0, views=row.views or 0) for row in rows]
+
+
+@router.get("/traffic-sources", response_model=list[TrafficSourceOut])
+def traffic_sources(
+    start: datetime,
+    end: datetime,
+    limit: int = Query(default=20, le=100),
+    db: Session = Depends(get_db),
+) -> list[TrafficSourceOut]:
+    """Aggregated breakdown of sessions/views/visitors by where traffic
+    came from -- referrer_category/source cover every visit (including
+    "direct"); utm_campaign_id is only populated for visits that arrived
+    via a tagged ad campaign link (null otherwise, see wix_sync.py)."""
+    connection = _current_connection(db)
+
+    rows = (
+        db.query(
+            WebsiteTrafficSource.referrer_category,
+            WebsiteTrafficSource.referrer_source,
+            WebsiteTrafficSource.utm_campaign_id,
+            func.sum(WebsiteTrafficSource.sessions).label("sessions"),
+            func.sum(WebsiteTrafficSource.views).label("views"),
+            func.sum(WebsiteTrafficSource.visitors).label("visitors"),
+        )
+        .filter(
+            WebsiteTrafficSource.connection_id == connection.id,
+            WebsiteTrafficSource.date >= start,
+            WebsiteTrafficSource.date <= end,
+        )
+        .group_by(
+            WebsiteTrafficSource.referrer_category,
+            WebsiteTrafficSource.referrer_source,
+            WebsiteTrafficSource.utm_campaign_id,
+        )
+        .order_by(func.sum(WebsiteTrafficSource.sessions).desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        TrafficSourceOut(
+            referrer_category=row.referrer_category,
+            referrer_source=row.referrer_source,
+            utm_campaign_id=row.utm_campaign_id,
+            sessions=row.sessions or 0,
+            views=row.views or 0,
+            visitors=row.visitors or 0,
+        )
+        for row in rows
+    ]
 
 
 @router.get("/form-submissions", response_model=list[FormSubmissionOut])

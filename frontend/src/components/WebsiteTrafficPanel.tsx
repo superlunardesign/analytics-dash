@@ -5,11 +5,21 @@ import {
   getFormSchemas,
   getFormSubmissions,
   getTopPages,
+  getTrafficSources,
   getWixStatus,
   triggerWixSync,
   wixInstallUrl,
 } from "../api";
-import type { DailyTraffic, FormSchema, FormSchemaField, FormSubmission, TopPage, WixStatus, WixSyncRun } from "../types";
+import type {
+  DailyTraffic,
+  FormSchema,
+  FormSchemaField,
+  FormSubmission,
+  TopPage,
+  TrafficSource,
+  WixStatus,
+  WixSyncRun,
+} from "../types";
 import { formatDateTime, formatFieldAnswer, formatNumber } from "../format";
 import { StatTile } from "./StatTile";
 import { LineChart } from "./LineChart";
@@ -89,6 +99,7 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
 
   const [daily, setDaily] = useState<DailyTraffic[]>([]);
   const [topPages, setTopPages] = useState<TopPage[]>([]);
+  const [trafficSources, setTrafficSources] = useState<TrafficSource[]>([]);
   const [submissions, setSubmissions] = useState<FormSubmission[]>([]);
   const [formNames, setFormNames] = useState<string[]>([]);
   const [formSchemas, setFormSchemas] = useState<FormSchema[]>([]);
@@ -129,15 +140,17 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
     if (!status?.connected) return;
     setDataLoading(true);
     try {
-      const [dailyRes, pagesRes, subsRes, namesRes, schemasRes] = await Promise.all([
+      const [dailyRes, pagesRes, sourcesRes, subsRes, namesRes, schemasRes] = await Promise.all([
         getDailyTraffic(range.start, range.end),
         getTopPages(range.start, range.end, 8),
+        getTrafficSources(range.start, range.end, 8),
         getFormSubmissions(range.start, range.end),
         getFormNames(),
         getFormSchemas(),
       ]);
       setDaily(dailyRes);
       setTopPages(pagesRes);
+      setTrafficSources(sourcesRes);
       setSubmissions(subsRes);
       setFormNames(namesRes);
       setFormSchemas(schemasRes);
@@ -550,6 +563,36 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
               {topPages.length === 0 && (
                 <tr>
                   <td style={{ padding: "6px 0", color: "var(--text-muted)" }}>No page data yet.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{ flex: "1 1 280px" }}>
+          <h3 style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>Top sources</h3>
+          <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
+            <tbody>
+              {trafficSources.map((s) => (
+                <tr
+                  key={`${s.referrer_category}-${s.referrer_source}-${s.utm_campaign_id}`}
+                  style={{ borderBottom: "1px solid var(--gridline)" }}
+                >
+                  <td style={{ padding: "6px 0", color: "var(--text-primary)" }}>
+                    {s.referrer_source || s.referrer_category || "Unknown"}
+                    <div style={{ color: "var(--text-muted)", fontSize: 11, marginTop: 2 }}>
+                      {s.referrer_category}
+                      {s.utm_campaign_id && ` · campaign ${s.utm_campaign_id}`}
+                    </div>
+                  </td>
+                  <td style={{ padding: "6px 0", textAlign: "right", color: "var(--text-secondary)" }}>
+                    {formatNumber(s.sessions)} sessions
+                  </td>
+                </tr>
+              ))}
+              {trafficSources.length === 0 && (
+                <tr>
+                  <td style={{ padding: "6px 0", color: "var(--text-muted)" }}>No source data yet.</td>
                 </tr>
               )}
             </tbody>

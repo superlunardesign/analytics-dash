@@ -8,6 +8,7 @@ import type {
   SortField,
   SyncRun,
   TopPage,
+  TrafficSource,
   WixStatus,
   WixSyncRun,
 } from "./types";
@@ -86,6 +87,18 @@ export function setPostSaved(id: string, is_saved: boolean): Promise<PostDetail>
   });
 }
 
+export function getTikTokStatus(): Promise<AccountStatus> {
+  return request("/api/tiktok/status");
+}
+
+export function triggerTikTokSync(): Promise<SyncRun> {
+  return request("/api/tiktok/sync", { method: "POST" });
+}
+
+export function tiktokOAuthStartUrl(): string {
+  return `${API_BASE_URL}/api/tiktok/oauth/start`;
+}
+
 export function getWixStatus(): Promise<WixStatus> {
   return request("/api/wix/status");
 }
@@ -106,6 +119,11 @@ export function getDailyTraffic(start: string, end: string): Promise<DailyTraffi
 export function getTopPages(start: string, end: string, limit = 10): Promise<TopPage[]> {
   const search = new URLSearchParams({ start, end, limit: String(limit) });
   return request(`/api/website/top-pages?${search.toString()}`);
+}
+
+export function getTrafficSources(start: string, end: string, limit = 20): Promise<TrafficSource[]> {
+  const search = new URLSearchParams({ start, end, limit: String(limit) });
+  return request(`/api/website/traffic-sources?${search.toString()}`);
 }
 
 export function getFormSubmissions(start: string, end: string): Promise<FormSubmission[]> {

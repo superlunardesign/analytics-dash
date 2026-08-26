@@ -92,6 +92,18 @@ export interface TopPage {
   views: number;
 }
 
+export interface TrafficSource {
+  // referrer_category/source cover every visit (including "direct");
+  // utm_campaign_id is only set for visits that arrived via a tagged ad
+  // campaign link.
+  referrer_category: string | null;
+  referrer_source: string | null;
+  utm_campaign_id: string | null;
+  sessions: number;
+  views: number;
+  visitors: number;
+}
+
 export interface FormSubmission {
   id: string;
   wix_form_id: string | null;

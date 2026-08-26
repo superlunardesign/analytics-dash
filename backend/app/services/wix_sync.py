@@ -11,6 +11,7 @@ from app.db.models import (
     SyncStatus,
     WebsiteDailyTraffic,
     WebsiteFormSubmission,
+    WebsiteTrafficSource,
     WixConnection,
     WixFormSchema,
     WixSyncRun,
@@ -87,6 +88,24 @@ TRAFFIC_FIELDS = [
 # via a filter the same way a dimension would be, per the model schema.
 TRAFFIC_FILTERS = [{"field": "timeframeGranularity", "condition": "EQUAL", "values": ["DAY"]}]
 
+# Same traffic model as TRAFFIC_FIELDS, dimensioned by source instead of
+# page. referrer_category/source cover every visit (even "direct"); most
+# of the model's other raw UTM dimensions are flagged "do not use" in
+# Wix's own field metadata (confirmed live) and are deliberately excluded
+# -- only utm_campaign_id (populated for tagged ad campaigns) is included.
+TRAFFIC_SOURCE_FIELDS = [
+    "traffic.created_timeframe",
+    "traffic.referrer_category_name",
+    "traffic.referrer_source_name",
+    "traffic.utm_campaign_id",
+    "traffic.sessions_count",
+    "traffic.views_count",
+    "traffic.visitors_count",
+]
+# Wix's sentinel for "no campaign attribution" -- normalized to None so
+# the frontend doesn't have to special-case a raw underscore.
+_NO_UTM_CAMPAIGN = "_"
+
 def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
@@ -158,6 +177,24 @@ def _upsert_traffic_rows(db: Session, rows: list[dict]) -> None:
     update_cols = {col: stmt.excluded[col] for col in ("sessions", "views", "visitors", "raw_payload")}
     stmt = stmt.on_conflict_do_update(
         index_elements=["connection_id", "date", "page_path"],
+        set_=update_cols,
+    )
+    db.execute(stmt)
+
+
+def _upsert_traffic_source_rows(db: Session, rows: list[dict]) -> None:
+    """Same upsert-over-plain-insert reasoning as _upsert_traffic_rows,
+    keyed on (connection_id, date, referrer_category, referrer_source,
+    utm_campaign_id) instead of (date, page_path)."""
+    if not rows:
+        return
+    table = WebsiteTrafficSource.__table__
+    dialect = db.get_bind().dialect.name
+    insert_fn = pg_insert if dialect == "postgresql" else sqlite_insert
+    stmt = insert_fn(table).values(rows)
+    update_cols = {col: stmt.excluded[col] for col in ("sessions", "views", "visitors", "raw_payload")}
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["connection_id", "date", "referrer_category", "referrer_source", "utm_campaign_id"],
         set_=update_cols,
     )
     db.execute(stmt)
@@ -250,6 +287,73 @@ def sync_wix_connection(db: Session, connection: WixConnection, force_full_backf
             )
         _upsert_traffic_rows(db, traffic_values)
         db.commit()
+
+        # -- Traffic sources (referrer category/source + UTM campaign ID) --
+        # same model/date window as the traffic sync above, just dimensioned
+        # by source instead of page. Isolated in its own try/except for the
+        # same reason as forms below: a problem here shouldn't roll back the
+        # traffic data that already committed.
+        traffic_source_error: str | None = None
+        try:
+            source_rows = client.iter_model_rows(
+                TRAFFIC_MODEL_ID,
+                TRAFFIC_SOURCE_FIELDS,
+                _iso(start),
+                _iso(end),
+                site_timezone,
+                filters=TRAFFIC_FILTERS,
+                sort_field="traffic.created_timeframe",
+            )
+            db.query(WebsiteTrafficSource).filter(
+                WebsiteTrafficSource.connection_id == connection.id,
+                WebsiteTrafficSource.date >= start,
+            ).delete()
+            seen_source_keys: set[tuple[str, str | None, str | None, str | None]] = set()
+            duplicate_source_rows = 0
+            source_values: list[dict] = []
+            for row in source_rows:
+                fields = row.get("fields", {})
+                date_str = cell_value(fields.get("traffic.created_timeframe"))
+                if not date_str:
+                    continue
+                referrer_category = cell_value(fields.get("traffic.referrer_category_name"))
+                referrer_source = cell_value(fields.get("traffic.referrer_source_name"))
+                utm_campaign_id = cell_value(fields.get("traffic.utm_campaign_id"))
+                if utm_campaign_id == _NO_UTM_CAMPAIGN:
+                    utm_campaign_id = None
+                key = (date_str, referrer_category, referrer_source, utm_campaign_id)
+                if key in seen_source_keys:
+                    duplicate_source_rows += 1
+                    continue
+                seen_source_keys.add(key)
+                source_values.append(
+                    {
+                        "connection_id": connection.id,
+                        "date": datetime.fromisoformat(date_str.replace("Z", "+00:00")),
+                        "referrer_category": referrer_category,
+                        "referrer_source": referrer_source,
+                        "utm_campaign_id": utm_campaign_id,
+                        "sessions": cell_value(fields.get("traffic.sessions_count")),
+                        "views": cell_value(fields.get("traffic.views_count")),
+                        "visitors": cell_value(fields.get("traffic.visitors_count")),
+                        "raw_payload": row,
+                    }
+                )
+                rows_synced += 1
+            if duplicate_source_rows:
+                logger.warning(
+                    "Wix traffic-source sync for connection %s skipped %d duplicate rows",
+                    connection.id,
+                    duplicate_source_rows,
+                )
+            _upsert_traffic_source_rows(db, source_values)
+            db.commit()
+        except Exception as exc:  # noqa: BLE001 -- traffic-source is best-effort; traffic itself already committed above
+            db.rollback()
+            traffic_source_error = f"traffic-source sync failed: {exc}"
+            logger.exception(
+                "Wix traffic-source sync failed for connection %s (traffic sync still succeeded)", connection.id
+            )
 
         # -- Forms: schema (question labels) + full submission answers,
         # via the Form Submission API. Unlike the old forms-actions
@@ -353,13 +457,11 @@ def sync_wix_connection(db: Session, connection: WixConnection, force_full_backf
         run.status = SyncStatus.SUCCESS
         run.rows_synced = rows_synced
         run.finished_at = datetime.now(timezone.utc)
-        if forms_error:
-            # Still a successful run -- traffic synced -- but flagged so a
-            # total or partial forms-sync problem is visible rather than
-            # silently swallowed. forms_error's own wording already says
-            # whether it was total ("forms sync failed...") or partial
-            # ("Skipped N form(s)...").
-            run.error_message = f"Traffic synced; {forms_error}"
+        # Still a successful run -- traffic synced -- but any best-effort
+        # sub-sync problem is flagged rather than silently swallowed.
+        sub_errors = [e for e in (traffic_source_error, forms_error) if e]
+        if sub_errors:
+            run.error_message = f"Traffic synced; {'; '.join(sub_errors)}"
         db.add(run)
         db.commit()
 

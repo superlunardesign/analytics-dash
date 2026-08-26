@@ -234,6 +234,52 @@ class WebsiteDailyTraffic(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 
+class WebsiteTrafficSource(Base):
+    """One row per (date, referrer category, referrer source, UTM campaign
+    ID) from the same `traffic` semantic model as WebsiteDailyTraffic --
+    a separate table because it's a different dimensional breakdown of the
+    same underlying sessions/views/visitors measures (source, not page),
+    not something that can share WebsiteDailyTraffic's (date, page_path)
+    grain.
+
+    referrer_category/source cover every visit (categorizes even "direct"
+    traffic), while utm_campaign_id is Wix's own attributed ad campaign ID
+    and is null for anything that didn't arrive via a tagged campaign link
+    -- confirmed live against the real site: populated for paid_ads traffic,
+    "_" (stored as null here) for everything else. Most of the *other* raw
+    UTM dimensions the semantic model exposes (utm_medium, utm_content,
+    utm_term, utm_campaign_source, utm_multichannelcampaign) are flagged
+    "do not use" in Wix's own field metadata and are deliberately not
+    pulled in here.
+    """
+
+    __tablename__ = "website_traffic_sources"
+    __table_args__ = (
+        UniqueConstraint(
+            "connection_id",
+            "date",
+            "referrer_category",
+            "referrer_source",
+            "utm_campaign_id",
+            name="uq_traffic_source_connection_date_source",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    connection_id: Mapped[str] = mapped_column(String, ForeignKey("wix_connections.id"), nullable=False)
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    referrer_category: Mapped[str | None] = mapped_column(String, nullable=True)
+    referrer_source: Mapped[str | None] = mapped_column(String, nullable=True)
+    utm_campaign_id: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    sessions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    views: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    visitors: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
 class WebsiteFormSubmission(Base):
     """One row per Wix form submission (e.g. a project application).
 

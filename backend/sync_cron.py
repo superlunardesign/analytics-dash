@@ -14,6 +14,7 @@ import sys
 from app.db.models import Account, Platform, WixConnection
 from app.db.session import SessionLocal
 from app.services.instagram_sync import SyncAlreadyRunningError, sync_instagram_account
+from app.services.tiktok_sync import TikTokSyncAlreadyRunningError, sync_tiktok_account
 from app.services.wix_sync import WixSyncAlreadyRunningError, sync_wix_connection
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -35,9 +36,12 @@ def main() -> int:
                 if account.platform == Platform.INSTAGRAM:
                     run = sync_instagram_account(db, account)
                     logger.info("Synced %s posts for account %s", run.posts_synced, account.id)
+                elif account.platform == Platform.TIKTOK:
+                    run = sync_tiktok_account(db, account)
+                    logger.info("Synced %s posts for account %s", run.posts_synced, account.id)
                 else:
                     logger.info("Skipping %s account %s: sync not implemented yet", account.platform.value, account.id)
-            except SyncAlreadyRunningError as exc:
+            except (SyncAlreadyRunningError, TikTokSyncAlreadyRunningError) as exc:
                 # Not a failure -- a manual "Sync now" (or the previous
                 # scheduled run, if it's taking a while) is already in
                 # flight for this account. Just skip and let it finish.
