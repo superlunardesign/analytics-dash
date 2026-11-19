@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { setManualMetrics, setPostSaved } from "../api";
 import type { PostDetail } from "../types";
 import { formatDateTime, formatNumber, formatSeconds, mediaTypeColor } from "../format";
+import { VideoAnalysisSection } from "./VideoAnalysisSection";
 
 interface PostDetailDrawerProps {
   post: PostDetail | null;
@@ -325,6 +326,8 @@ export function PostDetailDrawer({ post, loading, onClose, onSaved }: PostDetail
                 )}
               </>
             )}
+
+            <VideoAnalysisSection post={post} />
 
             <h3 style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8 }}>
               Snapshot history ({post.metric_history.length})

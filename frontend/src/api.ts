@@ -9,6 +9,7 @@ import type {
   SyncRun,
   TopPage,
   TrafficSource,
+  VideoAnalysis,
   WixStatus,
   WixSyncRun,
 } from "./types";
@@ -85,6 +86,18 @@ export function setPostSaved(id: string, is_saved: boolean): Promise<PostDetail>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ is_saved }),
   });
+}
+
+export function analyzeVideo(id: string, goal = "", force = false): Promise<VideoAnalysis> {
+  return request(`/api/posts/${id}/video-analysis`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ goal, force }),
+  });
+}
+
+export function getVideoAnalysis(id: string): Promise<VideoAnalysis> {
+  return request(`/api/posts/${id}/video-analysis`);
 }
 
 export function getTikTokStatus(): Promise<AccountStatus> {

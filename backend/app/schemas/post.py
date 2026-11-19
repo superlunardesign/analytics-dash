@@ -67,3 +67,32 @@ class ManualMetricsIn(BaseModel):
 
 class SavedIn(BaseModel):
     is_saved: bool
+
+
+class VideoAnalysisOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    post_id: str
+    external_analysis_id: int
+    status: str
+    goal: str | None = None
+    # Mirrors the analyzer's raw analysis_data verbatim (scores,
+    # what_this_video_is, why_it_performed, improvements, transcript,
+    # hook breakdowns, etc.) -- see PostVideoAnalysis in models.py.
+    raw_payload: dict = {}
+    error_message: str | None = None
+    requested_at: datetime
+    completed_at: datetime | None = None
+
+
+class AnalyzeVideoIn(BaseModel):
+    # One of viral_reach (default), sales_conversions, follower_growth,
+    # lead_generation, engagement -- see the Video Analyzer's own
+    # trigger_analysis docs. Left unvalidated here since the analyzer
+    # itself falls back to "viral_reach" for anything blank/unrecognized.
+    goal: str = ""
+    # Bypasses the "already completed" short-circuit to request a
+    # genuinely fresh run (the drawer's "Re-analyze" button) -- without
+    # this, a completed analysis is always served from cache.
+    force: bool = False

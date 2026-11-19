@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Literal
 
@@ -7,11 +8,22 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, aliased
 
-from app.db.models import Platform, Post, PostMetricSnapshot
+from app.db.models import Platform, Post, PostMetricSnapshot, PostVideoAnalysis
 from app.db.session import get_db
-from app.schemas.post import ManualMetricsIn, MetricSnapshotOut, PostDetailOut, PostListResponse, PostOut, SavedIn
+from app.integrations.video_analyzer import client as video_analyzer
+from app.schemas.post import (
+    AnalyzeVideoIn,
+    ManualMetricsIn,
+    MetricSnapshotOut,
+    PostDetailOut,
+    PostListResponse,
+    PostOut,
+    SavedIn,
+    VideoAnalysisOut,
+)
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
+logger = logging.getLogger(__name__)
 
 SortField = Literal[
     "posted_at",
@@ -214,3 +226,96 @@ def set_saved(post_id: str, payload: SavedIn, db: Session = Depends(get_db)) -> 
     db.refresh(post)
 
     return get_post(post_id, db)
+
+
+def _upsert_from_analyzer_payload(
+    db: Session, post_id: str, external_analysis_id: int, data: dict, goal: str | None, row: PostVideoAnalysis | None
+) -> PostVideoAnalysis:
+    """Writes one analyzer response (see video_analyzer.client._row_to_dict)
+    into our cache row, creating it if needed. status='failed' responses
+    store `data["error"]` (the analyzer's own fail_analysis() shape) as
+    our error_message."""
+    if row is None:
+        row = PostVideoAnalysis(post_id=post_id, external_analysis_id=external_analysis_id, goal=goal)
+    row.external_analysis_id = external_analysis_id
+    row.status = data.get("status", "processing")
+    row.raw_payload = data
+    row.error_message = data.get("error") if row.status == "failed" else None
+    if row.status == "completed" and not row.completed_at:
+        row.completed_at = datetime.now()
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def _refresh_if_processing(db: Session, row: PostVideoAnalysis) -> PostVideoAnalysis:
+    """Re-checks the analyzer's database for a still-processing analysis
+    and updates our cache if it has since completed/failed. A no-op read
+    for anything already completed/failed -- those never change again."""
+    if row.status != "processing":
+        return row
+    try:
+        data = video_analyzer.get_analysis(row.external_analysis_id)
+    except Exception:  # noqa: BLE001 -- transient read failure shouldn't break the drawer, just keep showing "processing"
+        logger.exception("Failed to refresh video analysis %s for post %s", row.external_analysis_id, row.post_id)
+        return row
+    if data is None:
+        return row
+    return _upsert_from_analyzer_payload(db, row.post_id, row.external_analysis_id, data, row.goal, row)
+
+
+@router.post("/{post_id}/video-analysis", response_model=VideoAnalysisOut)
+def analyze_video(post_id: str, payload: AnalyzeVideoIn, db: Session = Depends(get_db)) -> VideoAnalysisOut:
+    """Kicks off (or reuses) a Video Analyzer analysis for this post.
+    Order of preference, cheapest/fastest first: (1) our own cache, if
+    already completed and not forced; (2) an existing analysis for this
+    exact video URL in the analyzer's own database, however it got there
+    (its web UI, a direct MCP call, an earlier click here); (3) only
+    then, trigger a genuinely new analysis (3-9 minute background job on
+    that app's server) -- see app/integrations/video_analyzer/client.py.
+    `force=true` (the drawer's "Re-analyze" button) skips straight to
+    (3): re-reusing the same existing record would just hand back
+    identical results."""
+    post = db.query(Post).filter(Post.id == post_id).one_or_none()
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    if not post.permalink:
+        raise HTTPException(status_code=400, detail="This post has no link to analyze")
+
+    existing = db.query(PostVideoAnalysis).filter(PostVideoAnalysis.post_id == post_id).one_or_none()
+    if not payload.force:
+        if existing and existing.status == "completed":
+            return existing
+        if existing and existing.status == "processing":
+            return _refresh_if_processing(db, existing)
+
+    try:
+        if not payload.force:
+            found = video_analyzer.find_latest_analysis(post.permalink)
+            if found is not None:
+                return _upsert_from_analyzer_payload(
+                    db, post_id, found["id"], found, payload.goal or None, existing
+                )
+
+        triggered = video_analyzer.trigger_analysis(post.permalink, goal=payload.goal)
+        return _upsert_from_analyzer_payload(
+            db,
+            post_id,
+            triggered.analysis_id,
+            {"status": "processing"},
+            payload.goal or None,
+            existing,
+        )
+    except Exception as exc:  # noqa: BLE001 -- surface the failure to the caller
+        raise HTTPException(status_code=502, detail=f"Video analysis request failed: {exc}") from exc
+
+
+@router.get("/{post_id}/video-analysis", response_model=VideoAnalysisOut)
+def get_video_analysis(post_id: str, db: Session = Depends(get_db)) -> VideoAnalysisOut:
+    """Polled by the drawer while an analysis is in progress; just serves
+    the cache once it's completed or failed."""
+    row = db.query(PostVideoAnalysis).filter(PostVideoAnalysis.post_id == post_id).one_or_none()
+    if row is None:
+        raise HTTPException(status_code=404, detail="This post hasn't been analyzed yet")
+    return _refresh_if_processing(db, row)

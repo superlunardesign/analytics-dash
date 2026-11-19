@@ -45,6 +45,72 @@ export interface PostListResponse {
   items: Post[];
 }
 
+export interface VideoAnalysisScores {
+  hook_strength?: number;
+  promise_clarity?: number;
+  retention_design?: number;
+  engagement_potential?: number;
+  viral_potential?: number;
+  satisfaction_delivery?: number;
+  goal_alignment?: number;
+}
+
+export interface VideoAnalysisContentGoal {
+  goal_type?: string;
+  confidence?: string;
+  evidence?: string;
+  sales_channel?: string;
+  product_info?: string;
+  selling_signals?: string;
+}
+
+export interface VideoAnalysisPerformanceClassification {
+  classification?: string;
+  reasoning?: string;
+  like_rate?: number;
+  comment_rate?: number;
+  share_rate?: number;
+  has_reach_problem?: boolean;
+}
+
+// Mirrors the Video Analyzer's raw analysis_data verbatim (see
+// backend/app/integrations/video_analyzer/client.py) -- loosely typed
+// since that schema is large, nested, and owned by a different app.
+// Only the fields the drawer actually renders are named; anything else
+// rides along as unknown extra keys.
+export interface VideoAnalysisPayload {
+  status?: string;
+  video_title?: string;
+  what_this_video_is?: string;
+  why_it_performed?: string;
+  viral_mechanics?: string;
+  improvements?: string;
+  performance_prediction?: string;
+  transcript?: string;
+  follow_up_ideas?: string;
+  scores?: VideoAnalysisScores;
+  content_goal?: VideoAnalysisContentGoal;
+  performance_classification?: VideoAnalysisPerformanceClassification;
+  niche?: string;
+  hashtags?: string[];
+  like_count?: number;
+  share_count?: number;
+  error?: string;
+  [key: string]: unknown;
+}
+
+export interface VideoAnalysis {
+  id: string;
+  post_id: string;
+  external_analysis_id: number;
+  status: "processing" | "completed" | "failed" | string;
+  goal: string | null;
+  raw_payload: VideoAnalysisPayload;
+  error_message: string | null;
+  requested_at: string;
+  completed_at: string | null;
+}
+
 export interface AccountStatus {
   connected: boolean;
   username: string | null;

@@ -57,6 +57,22 @@ class Settings(BaseSettings):
     # Must exactly match a redirect URI registered on the TikTok app.
     tiktok_redirect_uri: str = "http://localhost:8000/api/tiktok/oauth/callback"
 
+    # Video Analyzer (separate app -- https://github.com/superlunardesign/video_analysis_ai).
+    # app_url/auth_token trigger a new analysis via its existing token-authed
+    # /api/analyze endpoint; database_url is a direct READ connection to its
+    # own Postgres (its own MCP server reads the same way -- there's no
+    # token-authed REST endpoint for reading results, only for triggering).
+    video_analyzer_app_url: str = ""
+    video_analyzer_auth_token: str = ""
+    video_analyzer_database_url: str = ""
+
+    @field_validator("video_analyzer_database_url")
+    @classmethod
+    def _normalize_video_analyzer_postgres_scheme(cls, v: str) -> str:
+        if v.startswith("postgres://"):
+            return "postgresql://" + v[len("postgres://") :]
+        return v
+
 
 @lru_cache
 def get_settings() -> Settings:

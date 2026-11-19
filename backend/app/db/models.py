@@ -148,6 +148,41 @@ class PostMetricSnapshot(Base):
     post: Mapped[Post] = relationship(back_populates="metric_snapshots")
 
 
+class PostVideoAnalysis(Base):
+    """Cached result from the separate Video Analyzer app, one row per
+    Post (the "Analyze" button in the post drawer). Kept as a local cache
+    -- not queried live on every drawer open -- for the same reason every
+    other integration here caches: avoids a round trip (here, a
+    cross-database query) on every view, and keeps working even if that
+    app's database becomes unreachable later.
+
+    external_analysis_id is that app's own Analysis.id (its database is
+    the source of truth; see app/integrations/video_analyzer/client.py).
+    raw_payload mirrors its analysis_data JSON blob verbatim rather than
+    being decomposed into columns -- that schema is large, nested, and
+    not ours to own; the frontend reads straight from it.
+    """
+
+    __tablename__ = "post_video_analyses"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    post_id: Mapped[str] = mapped_column(String, ForeignKey("posts.id"), nullable=False, unique=True)
+    external_analysis_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="processing")
+    goal: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    post: Mapped[Post] = relationship()
+
+
 class SyncRun(Base):
     """Audit log of each sync job execution, for debugging and rate-limit tracking."""
 
