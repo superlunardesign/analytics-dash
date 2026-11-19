@@ -131,7 +131,32 @@ Skip this section if you don't want the TikTok side.
    whatever TikTok's dashboard prompts for that (this wasn't verified live,
    see the note at the top of this README).
 
-## 4. Deploy to Render
+## 4. Connect the Video Analyzer app (one-time, optional)
+
+Skip this section if you don't have a Video Analyzer app (the separate
+sibling app that does AI topic/performance analysis on individual
+videos) deployed. When configured, the post detail drawer gets an
+**Analyze** button that triggers or displays that app's analysis for the
+post's video.
+
+This isn't a public third-party API -- it's a direct connection to that
+app's own Render service and Postgres database, so there's no developer
+app to register. You just need three values from that app's own Render
+dashboard:
+
+1. **`VIDEO_ANALYZER_APP_URL`** -- the Video Analyzer app's own Render
+   URL (e.g. `https://video-analysis-ai.onrender.com`). Used to trigger
+   new analyses via its `/api/analyze` endpoint.
+2. **`VIDEO_ANALYZER_AUTH_TOKEN`** -- the token that app's own
+   `/api/analyze` endpoint expects (check that app's environment
+   variables / `mcp_server.py` for the name it uses, e.g. `MCP_AUTH_TOKEN`).
+3. **`VIDEO_ANALYZER_DATABASE_URL`** -- the **External Database URL** of
+   that app's own Postgres instance, from its Render dashboard. This is a
+   direct, read-only connection used to read analysis results (there's no
+   REST endpoint for reading results, only for triggering) -- the same
+   way that app's own MCP server reads them.
+
+## 5. Deploy to Render
 
 1. Push this repo to GitHub/GitLab and create a new **Blueprint** in Render
    pointing at it -- Render will read `render.yaml` and provision the
@@ -156,6 +181,9 @@ Skip this section if you don't want the TikTok side.
    - `FRONTEND_BASE_URL` = `https://<frontend-service>.onrender.com`
    - If using Wix: `WIX_APP_ID`, `WIX_APP_SECRET`, `WIX_WEBHOOK_PUBLIC_KEY`
      from step 2 above
+   - If using the Video Analyzer: `VIDEO_ANALYZER_APP_URL`,
+     `VIDEO_ANALYZER_AUTH_TOKEN`, `VIDEO_ANALYZER_DATABASE_URL` from step 4
+     above
 5. If using Wix: on the `analytics-dash-sync` cron job, also set
    `WIX_APP_ID` / `WIX_APP_SECRET` (must match the API service exactly).
 6. On the `analytics-dash-frontend` service, set:
@@ -168,7 +196,7 @@ Skip this section if you don't want the TikTok side.
 Note: Render has no free tier for cron jobs (~$1/month minimum on the
 cheapest paid plan); the API and static site do run on the free plan.
 
-## 5. Local development
+## 6. Local development
 
 Backend:
 
@@ -273,6 +301,28 @@ Callback URL at the tunnel's address while developing.
   `refresh_token_encrypted` columns on `Account` that Instagram uses.
 - See the caveat at the top of this README: the exact TikTok API shapes
   used here haven't been confirmed against a live call.
+
+## Notes on what's actually available from the Video Analyzer app
+
+- This integration is read-only against that app's own database for
+  results, plus one write call (its `/api/analyze` endpoint) to trigger a
+  new analysis -- it never writes to that app's database directly.
+- Analyses typically take 3-9 minutes to run on that app's server; the
+  drawer polls for completion while a result is "processing".
+- Clicking **Analyze** first checks whether that video (matched by its
+  Instagram/TikTok permalink, normalized the same way that app's own
+  `normalize_video_url()` does) already has *any* analysis in that app's
+  database -- from its own web UI, a direct MCP call, or an earlier click
+  here -- and reuses it instead of triggering a duplicate run. **Re-analyze**
+  skips that reuse check and always starts a fresh run.
+- Results are cached locally in `post_video_analyses` (one row per post) so
+  the drawer doesn't need a cross-database read on every open; a
+  still-processing row is re-checked against that app's database each time
+  its detail is requested.
+- All three `VIDEO_ANALYZER_*` settings are optional. With any of them
+  unset, the drawer still shows the **Analyze** button (it doesn't know
+  ahead of time whether the backend is configured), but clicking it
+  returns an error instead of starting an analysis.
 
 ## What's scaffolded but not built yet
 
