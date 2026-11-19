@@ -47,11 +47,16 @@ VIDEO_FIELDS = [
     "like_count",
     "comment_count",
     "share_count",
-    # TikTok's "save"/bookmark equivalent -- named collect_count, not
-    # save_count (per public docs; not independently confirmed live yet,
-    # same caveat as the rest of this module).
-    "collect_count",
 ]
+
+# Confirmed LIVE (2026-11-19): requesting "collect_count" (the documented
+# save/bookmark field) on /v2/video/list/ gets rejected outright --
+# `{"error":{"code":"invalid_params","message":"collect_count are invalid
+# field(s)"}}` -- for this app's current scope/review status, so it's left
+# out of VIDEO_FIELDS above. TikTok saves show "--" until/unless that's
+# resolved (video.list scope re-approved with this field, or TikTok adds
+# it back); see tiktok_sync.py's saves=item.get("collect_count") mapping,
+# which degrades gracefully to None either way.
 
 
 class TikTokAPIError(RuntimeError):

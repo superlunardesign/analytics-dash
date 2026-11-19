@@ -96,6 +96,12 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
   const [preset, setPreset] = useState<RangePreset>(30);
   const [customRange, setCustomRange] = useState<{ start: string; end: string } | null>(null);
   const [showCustomRange, setShowCustomRange] = useState(false);
+  // Edits to the From/To inputs land here first -- nothing refetches
+  // (the 6-call Promise.all in refreshData, plus the posts table above)
+  // until "Apply" commits this into customRange. Firing on every onChange
+  // used to refetch with a half-edited range (e.g. a new "From" paired
+  // with the old "To") on every single keystroke/date pick.
+  const [pendingRange, setPendingRange] = useState<{ start: string; end: string } | null>(null);
 
   const [daily, setDaily] = useState<DailyTraffic[]>([]);
   const [topPages, setTopPages] = useState<TopPage[]>([]);
@@ -392,7 +398,14 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
             All time
           </button>
           <button
-            onClick={() => setShowCustomRange((v) => !v)}
+            onClick={() => {
+              if (showCustomRange) {
+                setShowCustomRange(false);
+              } else {
+                setPendingRange(customRange ?? range);
+                setShowCustomRange(true);
+              }
+            }}
             style={{
               background: customRange ? "var(--series-blue)" : "transparent",
               color: customRange ? "#fff" : "var(--text-muted)",
@@ -412,12 +425,12 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
               From{" "}
               <input
                 type="date"
-                value={toDateInputValue(customRange?.start ?? range.start)}
+                value={toDateInputValue(pendingRange?.start ?? range.start)}
                 onChange={(e) =>
-                  setCustomRange({
+                  setPendingRange((prev) => ({
                     start: new Date(e.target.value).toISOString(),
-                    end: customRange?.end ?? range.end,
-                  })
+                    end: prev?.end ?? range.end,
+                  }))
                 }
                 style={{ background: "var(--surface-1)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 6px", fontSize: 12 }}
               />
@@ -426,16 +439,33 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
               To{" "}
               <input
                 type="date"
-                value={toDateInputValue(customRange?.end ?? range.end)}
+                value={toDateInputValue(pendingRange?.end ?? range.end)}
                 onChange={(e) =>
-                  setCustomRange({
-                    start: customRange?.start ?? range.start,
+                  setPendingRange((prev) => ({
+                    start: prev?.start ?? range.start,
                     end: new Date(e.target.value).toISOString(),
-                  })
+                  }))
                 }
                 style={{ background: "var(--surface-1)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 6px", fontSize: 12 }}
               />
             </label>
+            <button
+              onClick={() => {
+                if (pendingRange) setCustomRange(pendingRange);
+              }}
+              style={{
+                background: "var(--series-blue)",
+                color: "#fff",
+                border: "none",
+                borderRadius: 6,
+                padding: "4px 12px",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Apply
+            </button>
           </div>
         )}
       </div>
