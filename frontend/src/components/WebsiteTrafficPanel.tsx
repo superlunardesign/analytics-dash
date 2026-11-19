@@ -78,6 +78,18 @@ function toDateInputValue(iso: string): string {
   return iso.slice(0, 10);
 }
 
+// A <input type="date"> fires onChange with an empty or partial value
+// while being edited (clearing it, typing digit-by-digit, some browsers'
+// native picker interactions) -- new Date("").toISOString() throws
+// RangeError: Invalid time value, which with no error boundary blanks
+// the whole page. Falls back to the previous value instead of crashing;
+// a real, complete date overwrites it the moment one is actually picked.
+function parseDateInputToISO(value: string, fallback: string): string {
+  if (!value) return fallback;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString();
+}
+
 // Finds a question by matching its human-readable label (not its opaque
 // target key, e.g. "short_answer_d8fe", which carries no semantic meaning)
 // so the "Recent submissions" preview can surface specific answers -- which
@@ -428,7 +440,7 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
                 value={toDateInputValue(pendingRange?.start ?? range.start)}
                 onChange={(e) =>
                   setPendingRange((prev) => ({
-                    start: new Date(e.target.value).toISOString(),
+                    start: parseDateInputToISO(e.target.value, prev?.start ?? range.start),
                     end: prev?.end ?? range.end,
                   }))
                 }
@@ -443,7 +455,7 @@ export function WebsiteTrafficPanel({ selectedDate, onSelectDate, onRangeChange 
                 onChange={(e) =>
                   setPendingRange((prev) => ({
                     start: prev?.start ?? range.start,
-                    end: new Date(e.target.value).toISOString(),
+                    end: parseDateInputToISO(e.target.value, prev?.end ?? range.end),
                   }))
                 }
                 style={{ background: "var(--surface-1)", color: "var(--text-primary)", border: "1px solid var(--border)", borderRadius: 6, padding: "4px 6px", fontSize: 12 }}
