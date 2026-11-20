@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { FaFacebook, FaInstagram, FaPinterest, FaTiktok } from "react-icons/fa6";
 import type { ElementType } from "../../types";
-import { TINASUZE_TEXT, TINASUZE_TEXT_MUTED } from "../../tinasuzeTheme";
+import { TINASUZE_ACCENT_SOFT, TINASUZE_TEXT, TINASUZE_TEXT_MUTED } from "../../tinasuzeTheme";
 
 interface AddElementPanelProps {
   onAdd: (type: ElementType) => void;
@@ -111,8 +111,8 @@ const ELEMENT_TYPES: { type: ElementType; label: string; preview: () => React.Re
 
 export function AddElementPanel({ onAdd }: AddElementPanelProps) {
   return (
-    <div style={{ display: "grid", gap: 20 }}>
-      {ELEMENT_TYPES.map(({ type, label, preview: Preview }) => (
+    <div>
+      {ELEMENT_TYPES.map(({ type, label, preview: Preview }, i) => (
         <motion.button
           key={type}
           whileHover={{ scale: 1.02 }}
@@ -123,7 +123,9 @@ export function AddElementPanel({ onAdd }: AddElementPanelProps) {
             textAlign: "left",
             background: "none",
             border: "none",
-            padding: 0,
+            borderBottom: i < ELEMENT_TYPES.length - 1 ? `1px solid ${TINASUZE_ACCENT_SOFT}` : "none",
+            padding: "16px 0",
+            margin: 0,
             cursor: "pointer",
             width: "100%",
           }}

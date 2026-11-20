@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getPageVisits, getTopLinkClicks, getTopProducts, listPages } from "../api";
 import { LineChart } from "../components/LineChart";
 import { formatNumber, parseDateInputToISO } from "../format";
-import { TINASUZE_ACCENT, TINASUZE_BORDER, TINASUZE_CARD, TINASUZE_TEXT, TINASUZE_TEXT_MUTED } from "../tinasuzeTheme";
+import { TINASUZE_ACCENT, TINASUZE_ACCENT_SOFT, TINASUZE_BORDER, TINASUZE_CARD, TINASUZE_TEXT, TINASUZE_TEXT_MUTED } from "../tinasuzeTheme";
 import type { CreatorPage, PageVisitPoint, TopLinkClick, TopProduct } from "../types";
 
 type RangePreset = 7 | 30 | 90 | 365 | "all";
@@ -197,9 +197,20 @@ export function BuilderAnalyticsPage() {
               {topLinks.length === 0 ? (
                 <p style={{ fontSize: 12, color: TINASUZE_TEXT_MUTED }}>No clicks in this range yet.</p>
               ) : (
-                <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
-                  {topLinks.map((l) => (
-                    <div key={l.link_url} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, minWidth: 0 }}>
+                <div style={{ minWidth: 0 }}>
+                  {topLinks.map((l, i) => (
+                    <div
+                      key={l.link_url}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        fontSize: 13,
+                        minWidth: 0,
+                        padding: "9px 0",
+                        borderBottom: i < topLinks.length - 1 ? `1px solid ${TINASUZE_ACCENT_SOFT}` : "none",
+                      }}
+                    >
                       <span
                         style={{
                           color: TINASUZE_ACCENT,
@@ -241,7 +252,22 @@ export function BuilderAnalyticsPage() {
                 <div style={{ width: "100%", aspectRatio: "1 / 1", borderRadius: 10, background: "#efece6", overflow: "hidden", marginBottom: 10 }}>
                   {product.image_url && <img src={product.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: TINASUZE_TEXT, marginBottom: 2 }}>{product.name}</div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: TINASUZE_TEXT,
+                    marginBottom: 2,
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                    lineHeight: 1.3,
+                    height: "2.6em",
+                  }}
+                >
+                  {product.name}
+                </div>
                 <div style={{ fontSize: 12, color: TINASUZE_TEXT_MUTED, marginBottom: 10 }}>{formatNumber(clicks)} Clicks</div>
                 <div
                   style={{

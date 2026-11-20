@@ -17,6 +17,22 @@ interface ElementRendererProps {
   // editor only ever has product_ids -- this is how its live preview
   // resolves the same display data locally instead of showing nothing.
   productsById?: Map<string, Product>;
+  // The page's Amazon Associates tag (CreatorPage.amazon_associate_tag)
+  // -- needed to build a carousel's "Add All to Cart" bulk link.
+  amazonAssociateTag?: string | null;
+}
+
+// Amazon's own bulk add-to-cart endpoint -- adds every listed ASIN to the
+// visitor's cart in one request, then lands them on the cart page. Each
+// product here independently has (or doesn't have) an amazon_asin --
+// anything without one is simply left out, not an error.
+function buildAmazonCartUrl(asins: string[], associateTag: string): string {
+  const params = new URLSearchParams({ AssociateTag: associateTag });
+  asins.forEach((asin, i) => {
+    params.set(`ASIN.${i + 1}`, asin);
+    params.set(`Quantity.${i + 1}`, "1");
+  });
+  return `https://www.amazon.com/gp/aws/cart/add.html?${params.toString()}`;
 }
 
 const SOCIAL_ICON: Record<string, IconType> = {
@@ -62,7 +78,7 @@ function Link({ href, onLinkClick, interactive, children, style }: {
   );
 }
 
-export function ElementRenderer({ element, interactive, onLinkClick, productsById }: ElementRendererProps) {
+export function ElementRenderer({ element, interactive, onLinkClick, productsById, amazonAssociateTag }: ElementRendererProps) {
   const c = element.config;
   const carouselScrollRef = useRef<HTMLDivElement>(null);
   const scrollCarousel = (dir: -1 | 1) => carouselScrollRef.current?.scrollBy({ left: dir * 180, behavior: "smooth" });
@@ -117,7 +133,14 @@ export function ElementRenderer({ element, interactive, onLinkClick, productsByI
         (config.product_ids ?? [])
           .map((id) => productsById?.get(id))
           .filter((p): p is Product => !!p)
-          .map((p) => ({ id: p.id, name: p.name, description: p.description, image_url: p.image_url, source_url: p.source_url }));
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            image_url: p.image_url,
+            source_url: p.source_url,
+            amazon_asin: p.amazon_asin,
+          }));
       return (
         <div style={{ width: "100%", minWidth: 0 }}>
           {config.heading && <div style={{ fontSize: 14, color: "#111", marginBottom: 8 }}>{config.heading}</div>}
@@ -198,6 +221,31 @@ export function ElementRenderer({ element, interactive, onLinkClick, productsByI
               </>
             )}
           </div>
+          {config.show_add_all_to_cart &&
+            amazonAssociateTag &&
+            (() => {
+              const asins = resolvedProducts.map((p) => p.amazon_asin).filter((a): a is string => !!a);
+              if (asins.length === 0) return null;
+              const cartUrl = buildAmazonCartUrl(asins, amazonAssociateTag);
+              return (
+                <Link href={cartUrl} interactive={interactive} onLinkClick={(url) => onLinkClick?.(url)}>
+                  <div
+                    style={{
+                      marginTop: 10,
+                      background: "#111",
+                      borderRadius: 10,
+                      padding: "10px 14px",
+                      textAlign: "center",
+                      color: "#fff",
+                      fontWeight: 600,
+                      fontSize: 13,
+                    }}
+                  >
+                    Add All to Cart ({asins.length})
+                  </div>
+                </Link>
+              );
+            })()}
         </div>
       );
     }

@@ -153,7 +153,7 @@ export function PagePreview({ page, elements, products, selectedElementId, onSel
                       </div>
                     )
                   ) : (
-                    <ElementRenderer element={el} productsById={productsById} />
+                    <ElementRenderer element={el} productsById={productsById} amazonAssociateTag={page.amazon_associate_tag} />
                   )}
                 </motion.div>
               ))}

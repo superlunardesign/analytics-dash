@@ -85,6 +85,20 @@ export function PageSettingsEditor({ page, onChange, onDelete }: PageSettingsEdi
         onChange={(v) => onChange({ theme: { ...theme, accent_color: v } })}
       />
 
+      <div style={{ marginTop: 14, marginBottom: 6, fontSize: 12, color: "var(--text-secondary)" }}>Amazon</div>
+      <label style={labelStyle}>
+        Associates tracking tag
+        <input
+          style={inputStyle}
+          value={page.amazon_associate_tag ?? ""}
+          onChange={(e) => onChange({ amazon_associate_tag: e.target.value || null })}
+          placeholder="e.g. tinasuze-20"
+        />
+      </label>
+      <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -6, marginBottom: 10 }}>
+        Needed for any carousel's "Add All to Cart" button to credit your Amazon Associates account.
+      </p>
+
       <button
         onClick={onDelete}
         style={{

@@ -59,6 +59,7 @@ class CreatorPageIn(BaseModel):
     is_published: bool = False
     theme: dict = {}
     social_links: dict = {}
+    amazon_associate_tag: str | None = None
 
     _validate_slug = field_validator("slug")(_validate_slug)
 
@@ -72,6 +73,7 @@ class CreatorPageUpdateIn(BaseModel):
     is_published: bool | None = None
     theme: dict | None = None
     social_links: dict | None = None
+    amazon_associate_tag: str | None = None
 
     _validate_slug = field_validator("slug")(_validate_slug)
 
@@ -87,6 +89,7 @@ class CreatorPageOut(BaseModel):
     is_published: bool
     theme: dict
     social_links: dict
+    amazon_associate_tag: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -123,6 +126,8 @@ class ProductOut(BaseModel):
     og_image_url: str | None = None
     custom_image_url: str | None = None
     image_url: str | None = None
+    # Auto-detected, not creator-set -- see app/integrations/amazon.py.
+    amazon_asin: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -148,6 +153,7 @@ class PublicPageOut(BaseModel):
     avatar_url: str | None = None
     theme: dict
     social_links: dict
+    amazon_associate_tag: str | None = None
     elements: list[PageElementOut]
 
 

@@ -204,6 +204,7 @@ export interface CreatorPageInput {
   is_published?: boolean;
   theme?: Record<string, unknown>;
   social_links?: Record<string, unknown>;
+  amazon_associate_tag?: string | null;
 }
 
 export function createPage(payload: CreatorPageInput): Promise<CreatorPage> {

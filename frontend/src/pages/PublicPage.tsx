@@ -83,6 +83,7 @@ export function PublicPage({ slugOverride }: PublicPageProps = {}) {
                 element={el}
                 interactive
                 onLinkClick={(url, productId) => handleLinkClick(url, el.id, productId)}
+                amazonAssociateTag={page.amazon_associate_tag}
               />
             )
           )}

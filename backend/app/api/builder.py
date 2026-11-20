@@ -12,6 +12,7 @@ from app.core.auth import current_tinasuze_user
 from app.db.models import CreatorPage, LinkClick, PageElement, PageVisit, Product
 from app.db.session import get_db
 from app.integrations import link_preview
+from app.integrations.amazon import extract_amazon_asin
 from app.integrations.storage import client as storage
 from app.schemas.builder import (
     CreatorPageDetailOut,
@@ -204,6 +205,7 @@ def list_products(db: Session = Depends(get_db)) -> list[Product]:
 def create_product(payload: ProductIn, db: Session = Depends(get_db)) -> Product:
     data = payload.model_dump()
     data["image_url"] = _resolve_product_image(data.get("custom_image_url"), data.get("og_image_url"))
+    data["amazon_asin"] = extract_amazon_asin(data["source_url"])
     product = Product(**data)
     db.add(product)
     db.commit()
@@ -231,6 +233,8 @@ def update_product(product_id: str, payload: ProductUpdateIn, db: Session = Depe
         setattr(product, key, value)
     if "custom_image_url" in updates or "og_image_url" in updates:
         product.image_url = _resolve_product_image(product.custom_image_url, product.og_image_url)
+    if "source_url" in updates:
+        product.amazon_asin = extract_amazon_asin(product.source_url)
     db.commit()
     db.refresh(product)
     return product

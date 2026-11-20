@@ -242,6 +242,10 @@ export interface CarouselProductRef {
   description: string | null;
   image_url: string | null;
   source_url: string;
+  // Auto-detected -- see backend app/integrations/amazon.py. Null for
+  // any non-Amazon product; such products are simply left out of the
+  // "Add All to Cart" bulk link, not an error.
+  amazon_asin?: string | null;
 }
 
 export interface CarouselConfig {
@@ -250,6 +254,10 @@ export interface CarouselConfig {
   // Only present on the PUBLIC page response (resolved server-side from
   // product_ids) -- never sent by the editor, never stored in the DB.
   products?: CarouselProductRef[];
+  // Shows an "Add All to Cart" button under the carousel when the page
+  // has an Amazon Associates tag set and at least one product here has
+  // an amazon_asin -- see ElementRenderer.tsx.
+  show_add_all_to_cart?: boolean;
 }
 
 export type TextAlign = "left" | "center" | "right";
@@ -317,6 +325,7 @@ export interface CreatorPage {
   is_published: boolean;
   theme: PageTheme;
   social_links: SocialLinksMap;
+  amazon_associate_tag: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -333,6 +342,7 @@ export interface Product {
   og_image_url: string | null;
   custom_image_url: string | null;
   image_url: string | null;
+  amazon_asin: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -352,6 +362,7 @@ export interface PublicPage {
   avatar_url: string | null;
   theme: PageTheme;
   social_links: SocialLinksMap;
+  amazon_associate_tag: string | null;
   elements: PageElement[];
 }
 

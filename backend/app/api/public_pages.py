@@ -43,6 +43,7 @@ def _resolve_carousel_config(config: dict, db: Session) -> dict:
                 "description": p.description,
                 "image_url": p.image_url,
                 "source_url": p.source_url,
+                "amazon_asin": p.amazon_asin,
             }
             for p in ordered
         ],
@@ -83,6 +84,7 @@ def get_public_page(slug: str, request: Request, db: Session = Depends(get_db)) 
         avatar_url=page.avatar_url,
         theme=page.theme,
         social_links=page.social_links,
+        amazon_associate_tag=page.amazon_associate_tag,
         elements=elements,
     )
 

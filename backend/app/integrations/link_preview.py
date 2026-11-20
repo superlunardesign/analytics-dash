@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 # outright (Amazon and some other retailers 503/CAPTCHA on obvious bot
 # UAs) -- still a plain unauthenticated GET, not an attempt to evade
 # detection beyond what any browser's own link-preview unfurler already does.
-_HEADERS = {
+# Exported (not underscore-prefixed) since app/integrations/amazon.py reuses
+# it for the same kind of fetch.
+HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -42,14 +44,15 @@ class LinkPreviewResult:
         self.image_url = image_url
 
 
-def _assert_public_http_url(url: str) -> None:
+def assert_public_http_url(url: str) -> None:
     """This fetches whatever URL is passed in from the backend's own
     network -- reject anything that isn't a resolvable public host so a
     pasted link can't be used to probe internal/loopback addresses
     (localhost, 169.254.169.254, etc). Only checks the initial host, not
     every redirect hop; adequate for this app's actual threat model (the
     one creator pasting her own product links), not a hardened SSRF
-    defense for untrusted public input."""
+    defense for untrusted public input. Exported (not underscore-prefixed)
+    since app/integrations/amazon.py reuses it for the same kind of fetch."""
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         raise ValueError("Only http/https links are supported")
@@ -65,8 +68,8 @@ def _assert_public_http_url(url: str) -> None:
 
 def fetch_preview(url: str) -> LinkPreviewResult | None:
     try:
-        _assert_public_http_url(url)
-        resp = httpx.get(url, headers=_HEADERS, timeout=10, follow_redirects=True)
+        assert_public_http_url(url)
+        resp = httpx.get(url, headers=HEADERS, timeout=10, follow_redirects=True)
         resp.raise_for_status()
     except (httpx.HTTPError, ValueError) as exc:
         logger.info("Link preview fetch failed for %s: %s", url, exc)

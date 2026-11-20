@@ -4,6 +4,7 @@ import type { CarouselProductRef, ElementConfig, PageElement, Product, SocialLin
 import { ColorField } from "./ColorField";
 import { ImageUploadField } from "./ImageUploadField";
 import { ProductPicker } from "./ProductPicker";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 interface ElementEditorProps {
   element: PageElement;
@@ -143,12 +144,29 @@ function CarouselEditor({
     setIds(next);
   };
 
+  const amazonEligibleCount = selected.filter((p) => p.amazon_asin).length;
+
   return (
     <>
       <label style={labelStyle}>
         Category heading
         <input style={inputStyle} value={(config.heading as string) ?? ""} onChange={(e) => onChange({ ...config, heading: e.target.value })} placeholder="e.g. Hair Tools & Products" />
       </label>
+
+      <div style={{ marginBottom: 14 }}>
+        <ToggleSwitch
+          checked={Boolean(config.show_add_all_to_cart)}
+          onChange={(checked) => onChange({ ...config, show_add_all_to_cart: checked })}
+          label="Add All to Cart button"
+        />
+        <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6, marginBottom: 0 }}>
+          {amazonEligibleCount > 0
+            ? `${amazonEligibleCount} of ${selected.length} product${selected.length === 1 ? "" : "s"} here ${amazonEligibleCount === 1 ? "is an" : "are"} Amazon link${amazonEligibleCount === 1 ? "" : "s"} and will be included.`
+            : "None of these products look like Amazon links yet -- add one to enable this button."}
+          {" Set your Associates tag in Page Settings."}
+        </p>
+      </div>
+
       <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>Products ({selected.length})</div>
       <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
         {selected.map((p, i) => (

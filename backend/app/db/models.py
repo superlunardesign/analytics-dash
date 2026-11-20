@@ -390,6 +390,11 @@ class CreatorPage(Base):
     # to keep current regardless of how many places show them.
     social_links: Mapped[dict] = mapped_column(JSON, default=dict)
 
+    # Amazon Associates tracking tag (e.g. "tinasuze-20"), page-level since
+    # it's the same one everywhere -- used to build a carousel's "Add All
+    # to Cart" bulk link (see Product.amazon_asin below).
+    amazon_associate_tag: Mapped[str | None] = mapped_column(String, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
@@ -449,6 +454,12 @@ class Product(Base):
     og_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
     custom_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
     image_url: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Auto-detected from source_url (see app/integrations/amazon.py) --
+    # null for anything that isn't a recognizable Amazon product link.
+    # Powers a carousel's "Add All to Cart" button: only products with an
+    # ASIN here can be included in the bulk-add link.
+    amazon_asin: Mapped[str | None] = mapped_column(String, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
