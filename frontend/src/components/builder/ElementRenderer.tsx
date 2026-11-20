@@ -6,7 +6,7 @@ interface ElementRendererProps {
   // preview: inert (clicking selects the element instead -- handled by
   // the parent wrapping this in its own onClick).
   interactive?: boolean;
-  onLinkClick?: (url: string) => void;
+  onLinkClick?: (url: string, productId?: string) => void;
   // Editor-only: the public API resolves a carousel's product_ids into
   // full `products` server-side (see app/api/public_pages.py), but the
   // editor only ever has product_ids -- this is how its live preview
@@ -117,7 +117,7 @@ export function ElementRenderer({ element, interactive, onLinkClick, productsByI
           {config.heading && <div style={{ fontSize: 14, color: "#111", marginBottom: 8 }}>{config.heading}</div>}
           <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
             {resolvedProducts.map((p) => (
-              <Link key={p.id} href={p.source_url} interactive={interactive} onLinkClick={onLinkClick}>
+              <Link key={p.id} href={p.source_url} interactive={interactive} onLinkClick={(url) => onLinkClick?.(url, p.id)}>
                 <div style={{ width: 84, flexShrink: 0 }}>
                   <div style={{ width: 84, height: 84, borderRadius: 8, background: "#eee", overflow: "hidden" }}>
                     {p.image_url && <img src={p.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
