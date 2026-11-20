@@ -247,9 +247,18 @@ export interface CarouselConfig {
   products?: CarouselProductRef[];
 }
 
+export type TextAlign = "left" | "center" | "right";
+
 export interface TextConfig {
   heading?: string;
   body?: string;
+  align?: TextAlign;
+  color?: string;
+}
+
+export interface SocialLinksConfig {
+  align?: TextAlign;
+  color?: string;
 }
 
 export interface LineConfig {

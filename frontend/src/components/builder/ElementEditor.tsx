@@ -1,6 +1,6 @@
-import { ArrowLeft, ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ArrowLeft, ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import type { CarouselProductRef, ElementConfig, PageElement, Product, SocialLinksMap } from "../../types";
+import type { CarouselProductRef, ElementConfig, PageElement, Product, SocialLinksMap, TextAlign } from "../../types";
 import { ColorField } from "./ColorField";
 import { ImageUploadField } from "./ImageUploadField";
 import { ProductPicker } from "./ProductPicker";
@@ -29,6 +29,42 @@ const inputStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = { fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 10 };
+
+const ALIGN_OPTIONS: { value: TextAlign; icon: typeof AlignLeft }[] = [
+  { value: "left", icon: AlignLeft },
+  { value: "center", icon: AlignCenter },
+  { value: "right", icon: AlignRight },
+];
+
+function AlignField({ value, onChange }: { value: TextAlign; onChange: (v: TextAlign) => void }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <span style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Alignment</span>
+      <div style={{ display: "flex", gap: 4 }}>
+        {ALIGN_OPTIONS.map(({ value: v, icon: Icon }) => (
+          <button
+            key={v}
+            onClick={() => onChange(v)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 30,
+              height: 28,
+              background: value === v ? "var(--series-blue)" : "var(--surface-1)",
+              color: value === v ? "#fff" : "var(--text-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: 6,
+              cursor: "pointer",
+            }}
+          >
+            <Icon size={14} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const SOCIAL_PLATFORMS: { key: keyof SocialLinksMap; label: string }[] = [
   { key: "instagram", label: "Instagram" },
@@ -92,6 +128,7 @@ function CarouselEditor({
   onProductSaved: (product: Product) => void;
 }) {
   const [picking, setPicking] = useState(false);
+  const [editTarget, setEditTarget] = useState<Product | null>(null);
   const productIds = (config.product_ids as string[]) ?? [];
   const byId = new Map(products.map((p) => [p.id, p]));
   const selected = productIds.map((id) => byId.get(id)).filter((p): p is Product => !!p);
@@ -122,6 +159,16 @@ function CarouselEditor({
               <div style={{ width: 24, height: 24, borderRadius: 4, background: "var(--surface-1)" }} />
             )}
             <span style={{ fontSize: 12, flex: 1, color: "var(--text-primary)" }}>{p.name}</span>
+            <button
+              onClick={() => {
+                setEditTarget(p);
+                setPicking(true);
+              }}
+              title="Edit this product"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}
+            >
+              <Pencil size={13} />
+            </button>
             <button onClick={() => move(i, -1)} disabled={i === 0} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}><ChevronUp size={14} /></button>
             <button onClick={() => move(i, 1)} disabled={i === selected.length - 1} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}><ChevronDown size={14} /></button>
             <button onClick={() => remove(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--series-red, #d64545)", display: "flex" }}><X size={14} /></button>
@@ -129,7 +176,10 @@ function CarouselEditor({
         ))}
       </div>
       <button
-        onClick={() => setPicking((v) => !v)}
+        onClick={() => {
+          setPicking((v) => !v);
+          setEditTarget(null);
+        }}
         style={{ display: "flex", alignItems: "center", gap: 4, background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}
       >
         {picking ? (
@@ -145,7 +195,11 @@ function CarouselEditor({
       {picking && (
         <ProductPicker
           products={products}
-          onClose={() => setPicking(false)}
+          initialEditProduct={editTarget}
+          onClose={() => {
+            setPicking(false);
+            setEditTarget(null);
+          }}
           onProductUpdated={onProductSaved}
           onAdd={(product) => {
             onProductSaved(product);
@@ -157,10 +211,22 @@ function CarouselEditor({
   );
 }
 
-function SocialLinksEditor({ socialLinks, onChange }: { socialLinks: SocialLinksMap; onChange: (l: SocialLinksMap) => void }) {
+function SocialLinksEditor({
+  socialLinks,
+  onChange,
+  config,
+  onConfigChange,
+}: {
+  socialLinks: SocialLinksMap;
+  onChange: (l: SocialLinksMap) => void;
+  config: ElementConfig;
+  onConfigChange: (c: ElementConfig) => void;
+}) {
   return (
     <>
-      <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10 }}>
+      <AlignField value={(config.align as TextAlign) || "left"} onChange={(align) => onConfigChange({ ...config, align })} />
+      <ColorField label="Icon color" value={(config.color as string) || "#111111"} onChange={(color) => onConfigChange({ ...config, color })} />
+      <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, marginBottom: 10 }}>
         This row shows whichever of these handles you've filled in -- edited here applies to every Social Links block on this page.
       </p>
       {SOCIAL_PLATFORMS.map(({ key, label }) => (
@@ -189,6 +255,8 @@ function TextEditor({ config, onChange }: { config: ElementConfig; onChange: (c:
         Body
         <textarea style={{ ...inputStyle, resize: "vertical" }} rows={3} value={(config.body as string) ?? ""} onChange={(e) => onChange({ ...config, body: e.target.value })} />
       </label>
+      <AlignField value={(config.align as TextAlign) || "left"} onChange={(align) => onChange({ ...config, align })} />
+      <ColorField label="Text color" value={(config.color as string) || "#111111"} onChange={(color) => onChange({ ...config, color })} />
     </>
   );
 }
@@ -263,7 +331,12 @@ export function ElementEditor({
         <CarouselEditor config={element.config} products={products} onChange={onConfigChange} onProductSaved={onProductSaved} />
       )}
       {element.element_type === "social_links" && (
-        <SocialLinksEditor socialLinks={socialLinks} onChange={onSocialLinksChange} />
+        <SocialLinksEditor
+          socialLinks={socialLinks}
+          onChange={onSocialLinksChange}
+          config={element.config}
+          onConfigChange={onConfigChange}
+        />
       )}
       {element.element_type === "text" && <TextEditor config={element.config} onChange={onConfigChange} />}
       {element.element_type === "line" && <LineEditor config={element.config} onChange={onConfigChange} />}

@@ -138,7 +138,11 @@ export function PagePreview({ page, elements, products, selectedElementId, onSel
                   </div>
                   {el.element_type === "social_links" ? (
                     Object.values(page.social_links ?? {}).some(Boolean) ? (
-                      <SocialLinksRow socialLinks={page.social_links ?? {}} accentColor={theme.accent_color} />
+                      <SocialLinksRow
+                        socialLinks={page.social_links ?? {}}
+                        accentColor={(el.config.color as string) || theme.accent_color}
+                        align={el.config.align as "left" | "center" | "right" | undefined}
+                      />
                     ) : (
                       // SocialLinksRow renders nothing at all with no handles
                       // set yet (correct on the public page) -- without this,

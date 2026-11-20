@@ -204,13 +204,16 @@ export function ElementRenderer({ element, interactive, onLinkClick, productsByI
       return null; // actual rendering happens in PagePreview/PublicPage, which have the page's social_links in scope
     }
 
-    case "text":
+    case "text": {
+      const align = (c.align as string) || "left";
+      const color = (c.color as string) || "#111";
       return (
-        <div>
-          {c.heading ? <div style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>{c.heading as string}</div> : null}
-          {c.body ? <div style={{ fontSize: 13, color: "#333", marginTop: 4, whiteSpace: "pre-wrap" }}>{c.body as string}</div> : null}
+        <div style={{ textAlign: align as React.CSSProperties["textAlign"] }}>
+          {c.heading ? <div style={{ fontWeight: 700, fontSize: 15, color }}>{c.heading as string}</div> : null}
+          {c.body ? <div style={{ fontSize: 13, color, opacity: 0.85, marginTop: 4, whiteSpace: "pre-wrap" }}>{c.body as string}</div> : null}
         </div>
       );
+    }
 
     case "line":
       return (
@@ -246,18 +249,21 @@ export function ElementRenderer({ element, interactive, onLinkClick, productsByI
 export function SocialLinksRow({
   socialLinks,
   accentColor,
+  align = "left",
   interactive,
   onLinkClick,
 }: {
   socialLinks: Record<string, string | undefined>;
   accentColor?: string;
+  align?: "left" | "center" | "right";
   interactive?: boolean;
   onLinkClick?: (url: string) => void;
 }) {
   const entries = Object.entries(socialLinks).filter(([, handle]) => handle);
   if (entries.length === 0) return null;
+  const justifyContent = align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start";
   return (
-    <div style={{ display: "flex", gap: 8 }}>
+    <div style={{ display: "flex", gap: 8, justifyContent }}>
       {entries.map(([platform, handle]) => {
         const href = SOCIAL_URL[platform]?.(handle!) ?? "";
         const Icon = SOCIAL_ICON[platform];

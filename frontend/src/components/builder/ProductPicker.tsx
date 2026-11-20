@@ -1,5 +1,5 @@
 import { Pencil, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createProduct, previewLink, updateProduct } from "../../api";
 import type { Product } from "../../types";
 import { ImageUploadField } from "./ImageUploadField";
@@ -11,6 +11,10 @@ interface ProductPickerProps {
   // NOT add/re-add it to the current carousel, unlike onAdd.
   onProductUpdated: (product: Product) => void;
   onClose: () => void;
+  // Jump straight into editing this product (e.g. opened via the Edit
+  // pencil on a product already in a carousel) instead of landing on
+  // "Choose existing"/"Paste a new link" first.
+  initialEditProduct?: Product | null;
 }
 
 // Fields prefilled by the OG-tag fetch (app/integrations/link_preview.py)
@@ -25,7 +29,7 @@ interface DraftProduct {
 
 const EMPTY_DRAFT: DraftProduct = { sourceUrl: "", name: "", description: "", imageUrl: "" };
 
-export function ProductPicker({ products, onAdd, onProductUpdated, onClose }: ProductPickerProps) {
+export function ProductPicker({ products, onAdd, onProductUpdated, onClose, initialEditProduct }: ProductPickerProps) {
   const [mode, setMode] = useState<"existing" | "new">(products.length > 0 ? "existing" : "new");
   const [draft, setDraft] = useState<DraftProduct>(EMPTY_DRAFT);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -45,6 +49,15 @@ export function ProductPicker({ products, onAdd, onProductUpdated, onClose }: Pr
     setError(null);
     setMode("new");
   };
+
+  // Re-fires on every distinct edit request, not just on mount -- if the
+  // picker was already open (e.g. right after adding a product, before
+  // it's closed), clicking Edit elsewhere just changes this prop on an
+  // already-mounted component rather than remounting it.
+  useEffect(() => {
+    if (initialEditProduct) startEditing(initialEditProduct);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialEditProduct?.id]);
 
   const cancelForm = () => {
     setEditingId(null);

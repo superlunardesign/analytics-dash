@@ -65,7 +65,8 @@ export function PublicPage() {
               <SocialLinksRow
                 key={el.id}
                 socialLinks={page.social_links ?? {}}
-                accentColor={theme.accent_color}
+                accentColor={(el.config.color as string) || theme.accent_color}
+                align={el.config.align as "left" | "center" | "right" | undefined}
                 interactive
                 onLinkClick={(url) => handleLinkClick(url, el.id)}
               />
