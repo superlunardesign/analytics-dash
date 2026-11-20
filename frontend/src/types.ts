@@ -219,7 +219,7 @@ export type SortField =
 
 // -- Creator page builder --
 
-export type ElementType = "button" | "card_link" | "carousel" | "social_links" | "text" | "line" | "photo";
+export type ElementType = "button" | "card_link" | "carousel" | "social_links" | "text" | "line" | "photo" | "image_card_row";
 
 export interface ButtonConfig {
   label?: string;
@@ -234,6 +234,20 @@ export interface CardLinkConfig {
   description?: string;
   url?: string;
   image_url?: string;
+}
+
+export interface ImageCard {
+  image_url?: string;
+  badge_text?: string;
+  caption?: string;
+  url?: string;
+}
+
+export interface ImageCardRowConfig {
+  // 1 card full-width, or 2 side by side -- see the "single image card
+  // link... would need two columns as well" request this answers.
+  columns?: 1 | 2;
+  cards?: ImageCard[];
 }
 
 export interface CarouselProductRef {

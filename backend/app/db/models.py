@@ -360,6 +360,10 @@ class ElementType(str, enum.Enum):
     TEXT = "text"
     LINE = "line"
     PHOTO = "photo"
+    # 1 or 2 image-forward cards side by side -- a photo filling most of the
+    # card, an optional badge overlaid on it (e.g. "POPULAR"), and a caption
+    # below, each independently linked. See frontend's ElementRenderer.tsx.
+    IMAGE_CARD_ROW = "image_card_row"
 
 
 class CreatorPage(Base):

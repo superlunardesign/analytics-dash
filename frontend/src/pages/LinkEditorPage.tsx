@@ -36,6 +36,7 @@ const DEFAULT_CONFIG: Record<ElementType, ElementConfig> = {
   text: { heading: "Heading", body: "Body text" },
   line: { style: "solid", color: "#f2a7c9" },
   photo: { image_url: "", link_url: "" },
+  image_card_row: { columns: 1, cards: [{ image_url: "", badge_text: "", caption: "New Card", url: "" }] },
 };
 
 // Saves config/settings edits 500ms after the last keystroke rather than

@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRef } from "react";
 import type { IconType } from "react-icons";
 import { FaFacebook, FaInstagram, FaPinterest, FaThreads, FaTiktok, FaYoutube } from "react-icons/fa6";
-import type { CarouselConfig, CarouselProductRef, PageElement, Product } from "../../types";
+import type { CarouselConfig, CarouselProductRef, ImageCard, ImageCardRowConfig, PageElement, Product } from "../../types";
 
 interface ElementRendererProps {
   element: PageElement;
@@ -291,6 +291,45 @@ export function ElementRenderer({ element, interactive, onLinkClick, productsByI
             )}
           </div>
         </Link>
+      );
+    }
+
+    case "image_card_row": {
+      const config = c as ImageCardRowConfig;
+      const columns = config.columns === 2 ? 2 : 1;
+      const cards: ImageCard[] = (config.cards ?? []).slice(0, columns);
+      return (
+        <div style={{ display: "grid", gridTemplateColumns: columns === 2 ? "1fr 1fr" : "1fr", gap: 10 }}>
+          {cards.map((card, i) => (
+            <Link key={i} href={card.url || ""} interactive={interactive} onLinkClick={onLinkClick}>
+              <div>
+                <div style={{ position: "relative", aspectRatio: "4 / 5", borderRadius: 10, background: "#eee", overflow: "hidden" }}>
+                  {card.image_url && <img src={card.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                  {card.badge_text && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 8,
+                        left: 8,
+                        background: "#111",
+                        color: "#fff",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        letterSpacing: 0.4,
+                        textTransform: "uppercase",
+                        padding: "4px 8px",
+                        borderRadius: 5,
+                      }}
+                    >
+                      {card.badge_text}
+                    </div>
+                  )}
+                </div>
+                {card.caption && <div style={{ fontSize: 13, fontWeight: 700, color: "#111", marginTop: 8 }}>{card.caption}</div>}
+              </div>
+            </Link>
+          ))}
+        </div>
       );
     }
 

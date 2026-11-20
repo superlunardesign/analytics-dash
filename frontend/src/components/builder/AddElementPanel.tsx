@@ -99,9 +99,42 @@ function PhotoPreview() {
   return <div style={{ height: 56, borderRadius: 8, background: "#e3e0da" }} />;
 }
 
+function ImageCardRowPreview() {
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ position: "relative", aspectRatio: "4 / 5", borderRadius: 8, background: "#e3e0da", overflow: "hidden" }}>
+          <div
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 6,
+              background: "#111",
+              color: "#fff",
+              fontSize: 9,
+              fontWeight: 800,
+              letterSpacing: 0.4,
+              padding: "3px 7px",
+              borderRadius: 4,
+            }}
+          >
+            POPULAR
+          </div>
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: TINASUZE_TEXT, marginTop: 6 }}>All My Hair Products</div>
+      </div>
+      <div style={{ flex: 1, opacity: 0.4 }}>
+        <div style={{ aspectRatio: "4 / 5", borderRadius: 8, background: "#e3e0da" }} />
+        <div style={{ fontSize: 11, fontWeight: 700, color: TINASUZE_TEXT, marginTop: 6 }}>Optional 2nd card</div>
+      </div>
+    </div>
+  );
+}
+
 const ELEMENT_TYPES: { type: ElementType; label: string; preview: () => React.ReactElement }[] = [
   { type: "button", label: "Add Button", preview: ButtonPreview },
   { type: "card_link", label: "Add Card Link", preview: CardLinkPreview },
+  { type: "image_card_row", label: "Add Image Card", preview: ImageCardRowPreview },
   { type: "carousel", label: "Add Link Carousel", preview: CarouselPreview },
   { type: "social_links", label: "Add Social Links", preview: SocialLinksPreview },
   { type: "text", label: "Add Text", preview: TextPreview },

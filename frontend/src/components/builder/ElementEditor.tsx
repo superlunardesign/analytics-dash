@@ -1,6 +1,6 @@
 import { AlignCenter, AlignLeft, AlignRight, ArrowLeft, ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import type { CarouselProductRef, ElementConfig, PageElement, Product, SocialLinksMap, TextAlign } from "../../types";
+import type { CarouselProductRef, ElementConfig, ImageCard, PageElement, Product, SocialLinksMap, TextAlign } from "../../types";
 import { ColorField } from "./ColorField";
 import { ImageUploadField } from "./ImageUploadField";
 import { ProductPicker } from "./ProductPicker";
@@ -329,6 +329,68 @@ function PhotoEditor({ config, onChange }: { config: ElementConfig; onChange: (c
   );
 }
 
+function ImageCardRowEditor({ config, onChange }: { config: ElementConfig; onChange: (c: ElementConfig) => void }) {
+  const columns = ((config.columns as number) || 1) as 1 | 2;
+  const cards = ((config.cards as ImageCard[]) ?? []).slice(0, 2);
+  while (cards.length < columns) cards.push({});
+
+  const updateCard = (index: number, updates: Partial<ImageCard>) => {
+    const next = [...cards];
+    next[index] = { ...next[index], ...updates };
+    onChange({ ...config, cards: next });
+  };
+
+  const setColumns = (next: 1 | 2) => onChange({ ...config, columns: next, cards: cards.slice(0, next) });
+
+  return (
+    <>
+      <div style={{ marginBottom: 14 }}>
+        <span style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Columns</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {([1, 2] as const).map((n) => (
+            <button
+              key={n}
+              onClick={() => setColumns(n)}
+              style={{
+                flex: 1,
+                padding: "6px 0",
+                background: columns === n ? "var(--series-blue)" : "var(--surface-1)",
+                color: columns === n ? "#fff" : "var(--text-secondary)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {cards.slice(0, columns).map((card, i) => (
+        <div key={i} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10, marginBottom: 10 }}>
+          {columns === 2 && <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>Card {i + 1}</div>}
+          <ImageUploadField label="Image" value={card.image_url ?? ""} onChange={(url) => updateCard(i, { image_url: url })} />
+          <label style={labelStyle}>
+            Badge text (optional, e.g. "POPULAR")
+            <input style={inputStyle} value={card.badge_text ?? ""} onChange={(e) => updateCard(i, { badge_text: e.target.value })} />
+          </label>
+          <label style={labelStyle}>
+            Caption
+            <input style={inputStyle} value={card.caption ?? ""} onChange={(e) => updateCard(i, { caption: e.target.value })} />
+          </label>
+          <label style={labelStyle}>
+            Link URL
+            <input style={inputStyle} value={card.url ?? ""} onChange={(e) => updateCard(i, { url: e.target.value })} placeholder="https://…" />
+          </label>
+        </div>
+      ))}
+    </>
+  );
+}
+
 const TYPE_LABELS: Record<string, string> = {
   button: "Button",
   card_link: "Card link",
@@ -337,6 +399,7 @@ const TYPE_LABELS: Record<string, string> = {
   text: "Text",
   line: "Line",
   photo: "Photo",
+  image_card_row: "Image card",
 };
 
 export function ElementEditor({
@@ -382,6 +445,7 @@ export function ElementEditor({
       {element.element_type === "text" && <TextEditor config={element.config} onChange={onConfigChange} />}
       {element.element_type === "line" && <LineEditor config={element.config} onChange={onConfigChange} />}
       {element.element_type === "photo" && <PhotoEditor config={element.config} onChange={onConfigChange} />}
+      {element.element_type === "image_card_row" && <ImageCardRowEditor config={element.config} onChange={onConfigChange} />}
     </div>
   );
 }
