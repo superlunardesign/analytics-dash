@@ -107,6 +107,14 @@ services:
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    # Client-side routing (react-router) means paths like /p/main or
+    # /builder/editor are never real files in dist/ -- without this,
+    # Render's static host 404s any direct request to them instead of
+    # serving index.html and letting the router take over.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       # Set to the analytics-dash-api service's live URL after first deploy.
       - key: VITE_API_BASE_URL
