@@ -211,3 +211,145 @@ export type SortField =
   | "likes"
   | "reach"
   | "total_interactions";
+
+// -- Creator page builder --
+
+export type ElementType = "button" | "card_link" | "carousel" | "social_links" | "text" | "line" | "photo";
+
+export interface ButtonConfig {
+  label?: string;
+  url?: string;
+  pdf_url?: string;
+  gradient_from?: string;
+  gradient_to?: string;
+}
+
+export interface CardLinkConfig {
+  title?: string;
+  description?: string;
+  url?: string;
+  image_url?: string;
+}
+
+export interface CarouselProductRef {
+  id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  source_url: string;
+}
+
+export interface CarouselConfig {
+  heading?: string;
+  product_ids?: string[];
+  // Only present on the PUBLIC page response (resolved server-side from
+  // product_ids) -- never sent by the editor, never stored in the DB.
+  products?: CarouselProductRef[];
+}
+
+export interface TextConfig {
+  heading?: string;
+  body?: string;
+}
+
+export interface LineConfig {
+  style?: "solid" | "dotted";
+  color?: string;
+}
+
+export interface PhotoConfig {
+  image_url?: string;
+  link_url?: string;
+}
+
+// Element config shape varies by element_type (see the *Config interfaces
+// above) -- kept as a loose record here rather than a discriminated union
+// since the editor/renderer both branch on element_type explicitly anyway.
+export type ElementConfig = Record<string, unknown>;
+
+export interface PageElement {
+  id: string;
+  page_id: string;
+  element_type: ElementType;
+  position: number;
+  config: ElementConfig;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SocialLinksMap {
+  instagram?: string;
+  tiktok?: string;
+  pinterest?: string;
+  facebook?: string;
+  threads?: string;
+  youtube?: string;
+}
+
+export interface PageTheme {
+  background_from?: string;
+  background_to?: string;
+  accent_color?: string;
+}
+
+export interface CreatorPage {
+  id: string;
+  slug: string;
+  title: string;
+  handle: string | null;
+  avatar_url: string | null;
+  is_published: boolean;
+  theme: PageTheme;
+  social_links: SocialLinksMap;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatorPageDetail extends CreatorPage {
+  elements: PageElement[];
+}
+
+export interface Product {
+  id: string;
+  source_url: string;
+  name: string;
+  description: string | null;
+  og_image_url: string | null;
+  custom_image_url: string | null;
+  image_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LinkPreview {
+  ok: boolean;
+  name: string | null;
+  description: string | null;
+  image_url: string | null;
+  error: string | null;
+}
+
+export interface PublicPage {
+  slug: string;
+  title: string;
+  handle: string | null;
+  avatar_url: string | null;
+  theme: PageTheme;
+  social_links: SocialLinksMap;
+  elements: PageElement[];
+}
+
+export interface TopLinkClick {
+  link_url: string;
+  clicks: number;
+}
+
+export interface PageVisitPoint {
+  date: string;
+  visits: number;
+}
+
+export interface TopProduct {
+  product: Product;
+  clicks: number;
+}

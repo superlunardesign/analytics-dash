@@ -1,13 +1,24 @@
 import type {
   AccountStatus,
+  CreatorPage,
+  CreatorPageDetail,
   DailyTraffic,
+  ElementConfig,
+  ElementType,
   FormSchema,
   FormSubmission,
+  LinkPreview,
+  PageElement,
+  PageVisitPoint,
   PostDetail,
   PostListResponse,
+  Product,
+  PublicPage,
   SortField,
   SyncRun,
+  TopLinkClick,
   TopPage,
+  TopProduct,
   TrafficSource,
   VideoAnalysis,
   WixStatus,
@@ -150,4 +161,171 @@ export function getFormNames(): Promise<string[]> {
 
 export function getFormSchemas(): Promise<FormSchema[]> {
   return request("/api/website/form-schema");
+}
+
+// -- Creator page builder --
+
+export function listPages(): Promise<CreatorPage[]> {
+  return request("/api/builder/pages");
+}
+
+export interface CreatorPageInput {
+  slug: string;
+  title: string;
+  handle?: string | null;
+  avatar_url?: string | null;
+  is_published?: boolean;
+  theme?: Record<string, unknown>;
+  social_links?: Record<string, unknown>;
+}
+
+export function createPage(payload: CreatorPageInput): Promise<CreatorPage> {
+  return request("/api/builder/pages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getPageDetail(pageId: string): Promise<CreatorPageDetail> {
+  return request(`/api/builder/pages/${pageId}`);
+}
+
+export function updatePage(pageId: string, payload: Partial<CreatorPageInput>): Promise<CreatorPage> {
+  return request(`/api/builder/pages/${pageId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deletePage(pageId: string): Promise<void> {
+  return request(`/api/builder/pages/${pageId}`, { method: "DELETE" });
+}
+
+export function createElement(pageId: string, elementType: ElementType, config: ElementConfig): Promise<PageElement> {
+  return request(`/api/builder/pages/${pageId}/elements`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ element_type: elementType, config }),
+  });
+}
+
+export function updateElement(
+  pageId: string,
+  elementId: string,
+  elementType: ElementType,
+  config: ElementConfig
+): Promise<PageElement> {
+  return request(`/api/builder/pages/${pageId}/elements/${elementId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ element_type: elementType, config }),
+  });
+}
+
+export function deleteElement(pageId: string, elementId: string): Promise<void> {
+  return request(`/api/builder/pages/${pageId}/elements/${elementId}`, { method: "DELETE" });
+}
+
+export function reorderElements(pageId: string, elementIds: string[]): Promise<PageElement[]> {
+  return request(`/api/builder/pages/${pageId}/elements/reorder`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ element_ids: elementIds }),
+  });
+}
+
+export function listProducts(): Promise<Product[]> {
+  return request("/api/builder/products");
+}
+
+export interface ProductInput {
+  source_url: string;
+  name: string;
+  description?: string | null;
+  og_image_url?: string | null;
+  custom_image_url?: string | null;
+  image_url?: string | null;
+}
+
+export function createProduct(payload: ProductInput): Promise<Product> {
+  return request("/api/builder/products", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateProduct(productId: string, payload: Partial<ProductInput>): Promise<Product> {
+  return request(`/api/builder/products/${productId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteProduct(productId: string): Promise<void> {
+  return request(`/api/builder/products/${productId}`, { method: "DELETE" });
+}
+
+export function previewLink(url: string): Promise<LinkPreview> {
+  const search = new URLSearchParams({ url });
+  return request(`/api/builder/products/preview?${search.toString()}`);
+}
+
+export async function uploadImage(file: File): Promise<string> {
+  const form = new FormData();
+  form.append("file", file);
+  const resp = await fetch(`${API_BASE_URL}/api/builder/uploads`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`${resp.status} ${resp.statusText}: ${body}`);
+  }
+  const data = (await resp.json()) as { url: string };
+  return data.url;
+}
+
+export function getTopLinkClicks(start: string, end: string, pageId?: string, limit = 20): Promise<TopLinkClick[]> {
+  const search = new URLSearchParams({ start, end, limit: String(limit) });
+  if (pageId) search.set("page_id", pageId);
+  return request(`/api/builder/analytics/top-links?${search.toString()}`);
+}
+
+export function getPageVisits(start: string, end: string, pageId?: string): Promise<PageVisitPoint[]> {
+  const search = new URLSearchParams({ start, end });
+  if (pageId) search.set("page_id", pageId);
+  return request(`/api/builder/analytics/visits?${search.toString()}`);
+}
+
+export function getTopProducts(start: string, end: string, pageId?: string, limit = 10): Promise<TopProduct[]> {
+  const search = new URLSearchParams({ start, end, limit: String(limit) });
+  if (pageId) search.set("page_id", pageId);
+  return request(`/api/builder/analytics/top-products?${search.toString()}`);
+}
+
+// -- Public page (no credentials: this is the unauthenticated, visitor-facing API) --
+
+export function getPublicPage(slug: string): Promise<PublicPage> {
+  return fetch(`${API_BASE_URL}/api/public/pages/${slug}`).then(async (resp) => {
+    if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+    return resp.json() as Promise<PublicPage>;
+  });
+}
+
+export function logPublicClick(slug: string, linkUrl: string, elementId?: string, productId?: string): void {
+  const payload = JSON.stringify({ link_url: linkUrl, element_id: elementId, product_id: productId });
+  const url = `${API_BASE_URL}/api/public/pages/${slug}/click`;
+  // sendBeacon fires the request even as the browser navigates away on
+  // click (the common case here) -- a normal fetch can get cancelled
+  // mid-flight the instant the tab starts unloading.
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon(url, new Blob([payload], { type: "application/json" }));
+  } else {
+    fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true });
+  }
 }
