@@ -1,105 +1,25 @@
-databases:
-  - name: analytics-dash-db
-    databaseName: analytics_dash
-    user: analytics_dash
-    plan: free
-
+# Exported from Render on 2026-11-20T22:45:37Z
+version: "1"
 services:
-  - type: web
-    name: analytics-dash-api
-    runtime: python
-    rootDir: backend
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    # Free-tier services don't support preDeployCommand, so the migration
-    # runs at the front of the start command instead. `alembic upgrade
-    # head` is a no-op once the schema's already current, so this is safe
-    # to run on every restart.
-    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      # Pinned to a version with prebuilt wheels for every dependency here
-      # (pydantic-core in particular is a Rust extension and lags behind
-      # brand-new Python releases) -- without this Render's default Python
-      # tries to compile it from source and fails on the read-only build fs.
-      - key: PYTHON_VERSION
-        value: 3.12.7
-      - key: DATABASE_URL
-        fromDatabase:
-          name: analytics-dash-db
-          property: connectionString
-      - key: SECRET_KEY
-        generateValue: true
-      - key: ENVIRONMENT
-        value: production
-      - key: META_GRAPH_API_VERSION
-        value: v22.0
-      # Fill these in on the Render dashboard after creation (Environment
-      # tab) -- see README.md for where each value comes from. The same
-      # three values need to be set again on analytics-dash-sync below,
-      # since Render doesn't let a blueprint-defined env var group hold
-      # values you fill in later.
-      - key: TOKEN_ENCRYPTION_KEY
-        sync: false
-      - key: META_APP_ID
-        sync: false
-      - key: META_APP_SECRET
-        sync: false
-      # Set these after the API and frontend are deployed once, so you
-      # have their real *.onrender.com URLs to fill in.
-      - key: INSTAGRAM_REDIRECT_URI
-        sync: false
-      - key: FRONTEND_BASE_URL
-        sync: false
-      # Wix custom app (website traffic correlation) -- see README.md.
-      # No redirect URI needed here: Wix's install flow has no callback
-      # handshake, only a webhook (configured on the Wix app dashboard
-      # to point at this service's /api/wix/webhooks/app-instance-installed).
-      - key: WIX_APP_ID
-        sync: false
-      - key: WIX_APP_SECRET
-        sync: false
-      - key: WIX_WEBHOOK_PUBLIC_KEY
-        sync: false
-
-  - type: cron
-    name: analytics-dash-sync
-    runtime: python
-    rootDir: backend
-    plan: starter # Render has no free tier for cron jobs; this is the cheapest paid tier.
-    schedule: "0 */4 * * *" # every 4 hours -- adjust to taste, mind the ~200 calls/hour Graph API limit
-    buildCommand: pip install -r requirements.txt
-    startCommand: python sync_cron.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.12.7
-      - key: DATABASE_URL
-        fromDatabase:
-          name: analytics-dash-db
-          property: connectionString
-      - key: META_GRAPH_API_VERSION
-        value: v22.0
-      # Must match the values set on analytics-dash-api exactly -- both
-      # services encrypt/decrypt the same stored OAuth tokens.
-      - key: TOKEN_ENCRYPTION_KEY
-        sync: false
-      - key: META_APP_ID
-        sync: false
-      - key: META_APP_SECRET
-        sync: false
-      # Must match analytics-dash-api exactly -- this service mints its
-      # own Wix access tokens the same way (client_credentials grant).
-      - key: WIX_APP_ID
-        sync: false
-      - key: WIX_APP_SECRET
-        sync: false
-
-  - type: web
-    name: analytics-dash-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
-    envVars:
-      # Set to the analytics-dash-api service's live URL after first deploy.
-      - key: VITE_API_BASE_URL
-        sync: false
+- type: web
+  name: analytics-dash-frontend
+  runtime: static
+  repo: https://github.com/superlunardesign/analytics-dash
+  branch: claude/creator-page-builder
+  envVars:
+  - key: VIDEO_ANALYZER_AUTH_TOKEN
+    sync: false
+  - key: VIDEO_ANALYZER_DATABASE_URL
+    sync: false
+  - key: VIDEO_ANALYZER_APP_URL
+    sync: false
+  - key: VITE_API_BASE_URL
+    sync: false
+  buildCommand: npm install && npm run build
+  staticPublishPath: dist
+  routes:
+  - type: rewrite
+    source: /*
+    destination: /index.html
+  autoDeployTrigger: commit
+  rootDir: frontend
