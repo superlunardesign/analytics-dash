@@ -69,10 +69,10 @@ services:
       - key: SUPABASE_STORAGE_BUCKET
         value: creator-page-uploads
       # Tinasuze dashboard login (gates /builder/* in the frontend and
-      # /api/builder/* here) -- see README.md for how to generate the hash.
+      # /api/builder/* here) -- plain username/password, set directly.
       - key: TINASUZE_DASHBOARD_USERNAME
         sync: false
-      - key: TINASUZE_DASHBOARD_PASSWORD_HASH
+      - key: TINASUZE_DASHBOARD_PASSWORD
         sync: false
 
   - type: cron

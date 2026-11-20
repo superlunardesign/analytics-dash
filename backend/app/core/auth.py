@@ -13,9 +13,9 @@ would simply never send it back.
 
 from __future__ import annotations
 
+import hmac
 import time
 
-import bcrypt
 import jwt
 from fastapi import Cookie, HTTPException
 
@@ -26,12 +26,12 @@ SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60  # 30 days
 JWT_ALGORITHM = "HS256"
 
 
-def verify_password(plain_password: str, password_hash: str) -> bool:
-    try:
-        return bcrypt.checkpw(plain_password.encode(), password_hash.encode())
-    except ValueError:
-        # Malformed/empty hash (e.g. not configured yet) -- never matches.
-        return False
+def verify_password(plain_password: str, expected_password: str) -> bool:
+    # Constant-time compare -- cheap insurance against a timing attack,
+    # even though this is just a plain stored password, not a hash (see
+    # config.py: a single personal login gate on a Render env var, not a
+    # multi-user system, so bcrypt hashing wasn't earning its keep here).
+    return bool(expected_password) and hmac.compare_digest(plain_password, expected_password)
 
 
 def create_session_token(username: str) -> str:

@@ -230,7 +230,7 @@ export function LinkEditorPage() {
   const selectedElement = pageDetail?.elements.find((e) => e.id === selectedElementId) ?? null;
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: 24 }}>
+    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 24px 24px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <select
           value={currentPageId ?? ""}
@@ -239,9 +239,9 @@ export function LinkEditorPage() {
             setSelectedElementId(null);
           }}
           style={{
-            background: "var(--surface-1)",
-            color: "var(--text-primary)",
-            border: "1px solid var(--border)",
+            background: "#fff",
+            color: TINASUZE_TEXT,
+            border: `1px solid ${TINASUZE_BORDER}`,
             borderRadius: 6,
             padding: "6px 10px",
             fontSize: 13,
@@ -255,7 +255,7 @@ export function LinkEditorPage() {
         </select>
         <button
           onClick={() => setCreatingPage(true)}
-          style={{ display: "flex", alignItems: "center", gap: 5, background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontSize: 13, color: "var(--text-secondary)", cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", gap: 5, background: "#fff", border: `1px solid ${TINASUZE_BORDER}`, borderRadius: 6, padding: "6px 12px", fontSize: 13, color: TINASUZE_TEXT, cursor: "pointer" }}
         >
           <Plus size={14} /> New page
         </button>
@@ -264,7 +264,7 @@ export function LinkEditorPage() {
             href={`/p/${pageDetail.slug}`}
             target="_blank"
             rel="noreferrer"
-            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--series-blue)", marginLeft: "auto", textDecoration: "none" }}
+            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 700, color: TINASUZE_ACCENT, marginLeft: "auto", textDecoration: "none" }}
           >
             View live page <ExternalLink size={13} />
           </a>
@@ -273,8 +273,7 @@ export function LinkEditorPage() {
 
       {pageDetail && (
         <div style={{ display: "grid", gridTemplateColumns: "240px 1fr 320px", gap: 20, alignItems: "start" }}>
-          <div>
-            <h3 style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 10 }}>Add to page</h3>
+          <div style={cardStyle}>
             <AddElementPanel onAdd={handleAddElement} />
           </div>
 
@@ -291,10 +290,7 @@ export function LinkEditorPage() {
 
           <div
             style={{
-              background: "var(--surface-1)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              padding: 16,
+              ...cardStyle,
               position: "sticky",
               top: 20,
               overflow: "hidden",

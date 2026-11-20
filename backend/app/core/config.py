@@ -83,12 +83,12 @@ class Settings(BaseSettings):
 
     # Tinasuze dashboard login -- a single hardcoded account (no user
     # table), gating only /api/builder/* (not Superlunar's own routes,
-    # and never /api/public/* -- that's the visitor-facing page). The
-    # password is never stored or compared in plaintext: generate the
-    # hash with `python -c "import bcrypt; print(bcrypt.hashpw(b'yourpassword', bcrypt.gensalt()).decode())"`
-    # and set that as TINASUZE_DASHBOARD_PASSWORD_HASH.
+    # and never /api/public/* -- that's the visitor-facing page). Just a
+    # plain env var, not a hash: this is a single personal login gate on
+    # a Render env var only the account owner can see, not a multi-user
+    # system, so hashing adds friction without a real security win here.
     tinasuze_dashboard_username: str = ""
-    tinasuze_dashboard_password_hash: str = ""
+    tinasuze_dashboard_password: str = ""
 
 
 @lru_cache

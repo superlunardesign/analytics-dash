@@ -34,13 +34,13 @@ def _set_session_cookie(response: Response, username: str) -> None:
 @router.post("/login", response_model=StatusOut)
 def login(payload: LoginIn, response: Response) -> StatusOut:
     settings = get_settings()
-    if not settings.tinasuze_dashboard_username or not settings.tinasuze_dashboard_password_hash:
+    if not settings.tinasuze_dashboard_username or not settings.tinasuze_dashboard_password:
         raise HTTPException(
             status_code=503,
-            detail="Dashboard login isn't configured yet -- TINASUZE_DASHBOARD_USERNAME/PASSWORD_HASH aren't set.",
+            detail="Dashboard login isn't configured yet -- TINASUZE_DASHBOARD_USERNAME/PASSWORD aren't set.",
         )
     valid = payload.username == settings.tinasuze_dashboard_username and verify_password(
-        payload.password, settings.tinasuze_dashboard_password_hash
+        payload.password, settings.tinasuze_dashboard_password
     )
     if not valid:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
