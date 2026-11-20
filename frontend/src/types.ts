@@ -284,12 +284,14 @@ export interface SocialLinksMap {
   facebook?: string;
   threads?: string;
   youtube?: string;
+  [key: string]: string | undefined;
 }
 
 export interface PageTheme {
   background_from?: string;
   background_to?: string;
   accent_color?: string;
+  [key: string]: string | undefined;
 }
 
 export interface CreatorPage {
