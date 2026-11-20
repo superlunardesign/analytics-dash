@@ -11,6 +11,18 @@ export function formatSeconds(value: number | null | undefined): string {
   return `${minutes}m ${seconds}s`;
 }
 
+// A <input type="date"> fires onChange with an empty or partial value
+// while being edited (clearing it, typing digit-by-digit, some browsers'
+// native picker interactions) -- new Date("").toISOString() throws
+// RangeError: Invalid time value, which with no error boundary blanks
+// the whole page. Falls back to the previous value instead of crashing;
+// a real, complete date overwrites it the moment one is actually picked.
+export function parseDateInputToISO(value: string, fallback: string): string {
+  if (!value) return fallback;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString();
+}
+
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });

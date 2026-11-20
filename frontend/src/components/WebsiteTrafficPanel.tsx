@@ -20,7 +20,7 @@ import type {
   WixStatus,
   WixSyncRun,
 } from "../types";
-import { formatDateTime, formatFieldAnswer, formatNumber } from "../format";
+import { formatDateTime, formatFieldAnswer, formatNumber, parseDateInputToISO } from "../format";
 import { StatTile } from "./StatTile";
 import { LineChart } from "./LineChart";
 import { SubmissionDetailDrawer } from "./SubmissionDetailDrawer";
@@ -76,18 +76,6 @@ function rangeForPreset(preset: RangePreset): { start: string; end: string } {
 
 function toDateInputValue(iso: string): string {
   return iso.slice(0, 10);
-}
-
-// A <input type="date"> fires onChange with an empty or partial value
-// while being edited (clearing it, typing digit-by-digit, some browsers'
-// native picker interactions) -- new Date("").toISOString() throws
-// RangeError: Invalid time value, which with no error boundary blanks
-// the whole page. Falls back to the previous value instead of crashing;
-// a real, complete date overwrites it the moment one is actually picked.
-function parseDateInputToISO(value: string, fallback: string): string {
-  if (!value) return fallback;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? fallback : parsed.toISOString();
 }
 
 // Finds a question by matching its human-readable label (not its opaque
