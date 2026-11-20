@@ -30,7 +30,20 @@ function TinasuzeLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+// This build is deployed TWICE as two separate Render static sites from
+// the same repo: "analytics-dash-frontend" (the dashboard + editor, no
+// env var set) and a second dedicated site that only ever shows the one
+// public bio page, with VITE_PUBLIC_PAGE_SLUG set at build time and a
+// creator's custom domain attached to it instead. Since the dashboard
+// site never sets this var, there's no host-sniffing needed -- its mere
+// presence at build time is enough to know which of the two this is.
+const PUBLIC_DOMAIN_SLUG = import.meta.env.VITE_PUBLIC_PAGE_SLUG as string | undefined;
+
 function App() {
+  if (PUBLIC_DOMAIN_SLUG) {
+    return <PublicPage slugOverride={PUBLIC_DOMAIN_SLUG} />;
+  }
+
   return (
     <Routes>
       {/* The actual visitor-facing page -- deliberately outside

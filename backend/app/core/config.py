@@ -13,6 +13,20 @@ class Settings(BaseSettings):
     frontend_base_url: str = "http://localhost:5173"
     secret_key: str = "change-me-in-production"
 
+    # Comma-separated extra origins allowed to call the API, beyond
+    # frontend_base_url -- for Tinasuze's public bio-page custom domain(s)
+    # (e.g. "https://tinasuze.com,https://www.tinasuze.com"). The browser
+    # enforces CORS by the domain in its address bar, not by which Render
+    # static site served the HTML, so a custom domain calling
+    # /api/public/* needs its own origin allow-listed here even though
+    # that endpoint takes no cookies/credentials at all.
+    extra_cors_origins: str = ""
+
+    @property
+    def cors_allow_origins(self) -> list[str]:
+        extra = [o.strip() for o in self.extra_cors_origins.split(",") if o.strip()]
+        return [self.frontend_base_url, *extra]
+
     # Database
     database_url: str = "sqlite:///./dev.db"
 

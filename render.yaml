@@ -50,6 +50,11 @@ services:
         sync: false
       - key: FRONTEND_BASE_URL
         sync: false
+      # Tinasuze's public bio-page custom domain(s), comma-separated, so
+      # the browser's CORS check allows that domain to call /api/public/*
+      # -- e.g. "https://tinasuze.com,https://www.tinasuze.com".
+      - key: EXTRA_CORS_ORIGINS
+        sync: false
       # Wix custom app (website traffic correlation) -- see README.md.
       # No redirect URI needed here: Wix's install flow has no callback
       # handshake, only a webhook (configured on the Wix app dashboard

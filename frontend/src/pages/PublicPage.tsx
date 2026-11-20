@@ -4,8 +4,15 @@ import { getPublicPage, logPublicClick } from "../api";
 import { ElementRenderer, SocialLinksRow } from "../components/builder/ElementRenderer";
 import type { PublicPage as PublicPageData } from "../types";
 
-export function PublicPage() {
-  const { slug } = useParams<{ slug: string }>();
+interface PublicPageProps {
+  // Set when this is being rendered for a custom domain that always shows
+  // one fixed page (see App.tsx) rather than the normal /p/:slug route.
+  slugOverride?: string;
+}
+
+export function PublicPage({ slugOverride }: PublicPageProps = {}) {
+  const { slug: routeSlug } = useParams<{ slug: string }>();
+  const slug = slugOverride ?? routeSlug;
   const [page, setPage] = useState<PublicPageData | null>(null);
   const [notFound, setNotFound] = useState(false);
 

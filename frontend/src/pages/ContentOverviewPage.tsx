@@ -2,9 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getPost, listPosts, setPostSaved } from "../api";
 import { PostDetailDrawer } from "../components/PostDetailDrawer";
 import { PostsTable } from "../components/PostsTable";
-import { StatTile } from "../components/StatTile";
 import { formatNumber, formatSeconds } from "../format";
+import { TINASUZE_ACCENT, TINASUZE_BORDER, TINASUZE_CARD, TINASUZE_TEXT, TINASUZE_TEXT_MUTED } from "../tinasuzeTheme";
 import type { Post, PostDetail, SortField } from "../types";
+
+function StatChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ background: "#fff", borderRadius: 12, padding: "12px 18px", minWidth: 130 }}>
+      <div style={{ fontSize: 12, color: TINASUZE_TEXT_MUTED, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: TINASUZE_TEXT, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+    </div>
+  );
+}
 
 // This creator is far more active on TikTok, so content performance
 // defaults there rather than assuming Instagram like the Superlunar
@@ -87,80 +96,78 @@ export function ContentOverviewPage() {
   }, [posts]);
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px" }}>
+    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 24px 32px" }}>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", margin: "0 0 20px" }}>
-        <StatTile label="Total views" value={formatNumber(totals.views)} accent="var(--series-blue)" />
-        <StatTile label="Total saves" value={formatNumber(totals.saves)} accent="var(--series-aqua)" />
-        <StatTile label="Total shares" value={formatNumber(totals.shares)} accent="var(--series-orange)" />
-        <StatTile
-          label="Avg watch time"
-          value={totals.watchCount ? formatSeconds(totals.watchSum / totals.watchCount) : "—"}
-          accent="var(--series-violet)"
-        />
+        <StatChip label="Total views" value={formatNumber(totals.views)} />
+        <StatChip label="Total saves" value={formatNumber(totals.saves)} />
+        <StatChip label="Total shares" value={formatNumber(totals.shares)} />
+        <StatChip label="Avg watch time" value={totals.watchCount ? formatSeconds(totals.watchSum / totals.watchCount) : "—"} />
       </div>
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-        {(["all", "saved"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setPostsTab(tab)}
-            style={{
-              background: postsTab === tab ? "var(--series-blue)" : "transparent",
-              color: postsTab === tab ? "#fff" : "var(--text-secondary)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              padding: "6px 14px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {tab === "all" ? "All posts" : "★ Saved"}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        {postsTab === "all" && (
-          <label style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-            Type:{" "}
-            <select
-              value={mediaProductType}
-              onChange={(e) => setMediaProductType(e.target.value)}
+      <div style={{ background: TINASUZE_CARD, borderRadius: 20, padding: 28, boxShadow: "0 10px 30px rgba(21,17,13,0.06)" }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          {(["all", "saved"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setPostsTab(tab)}
               style={{
-                background: "var(--surface-1)",
-                color: "var(--text-primary)",
-                border: "1px solid var(--border)",
+                background: postsTab === tab ? TINASUZE_ACCENT : "transparent",
+                color: postsTab === tab ? "#fff" : TINASUZE_TEXT_MUTED,
+                border: postsTab === tab ? "none" : `1px solid ${TINASUZE_BORDER}`,
                 borderRadius: 6,
-                padding: "4px 8px",
+                padding: "6px 14px",
                 fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
               }}
             >
-              <option value="">All</option>
-              {MEDIA_PRODUCT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {postsLoading && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Loading…</span>}
-      </div>
+              {tab === "all" ? "All posts" : "★ Saved"}
+            </button>
+          ))}
+        </div>
 
-      <PostsTable
-        posts={posts}
-        sortBy={sortBy}
-        order={order}
-        onSort={handleSort}
-        onSelect={handleSelectPost}
-        onToggleSaved={handleToggleSaved}
-        emptyMessage={
-          postsTab === "saved"
-            ? "Nothing saved yet -- click the ☆ on any post to add it here."
-            : "No posts yet for this filter -- connect and sync TikTok/Instagram from the Superlunar tab."
-        }
-      />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          {postsTab === "all" && (
+            <label style={{ fontSize: 13, color: TINASUZE_TEXT_MUTED }}>
+              Type:{" "}
+              <select
+                value={mediaProductType}
+                onChange={(e) => setMediaProductType(e.target.value)}
+                style={{
+                  background: "#fff",
+                  color: TINASUZE_TEXT,
+                  border: `1px solid ${TINASUZE_BORDER}`,
+                  borderRadius: 6,
+                  padding: "4px 8px",
+                  fontSize: 13,
+                }}
+              >
+                <option value="">All</option>
+                {MEDIA_PRODUCT_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {postsLoading && <span style={{ fontSize: 12, color: TINASUZE_TEXT_MUTED }}>Loading…</span>}
+        </div>
+
+        <PostsTable
+          posts={posts}
+          sortBy={sortBy}
+          order={order}
+          onSort={handleSort}
+          onSelect={handleSelectPost}
+          onToggleSaved={handleToggleSaved}
+          emptyMessage={
+            postsTab === "saved"
+              ? "Nothing saved yet -- click the ☆ on any post to add it here."
+              : "No posts yet for this filter -- connect and sync TikTok/Instagram from the Superlunar tab."
+          }
+        />
+      </div>
 
       <PostDetailDrawer post={selectedPost} loading={selectedLoading} onClose={() => setSelectedPost(null)} onSaved={handlePostSaved} />
     </div>
