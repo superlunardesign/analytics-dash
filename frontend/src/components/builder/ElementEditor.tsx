@@ -1,3 +1,4 @@
+import { ArrowLeft, ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import type { CarouselProductRef, ElementConfig, PageElement, Product, SocialLinksMap } from "../../types";
 import { ColorField } from "./ColorField";
@@ -121,17 +122,25 @@ function CarouselEditor({
               <div style={{ width: 24, height: 24, borderRadius: 4, background: "var(--surface-1)" }} />
             )}
             <span style={{ fontSize: 12, flex: 1, color: "var(--text-primary)" }}>{p.name}</span>
-            <button onClick={() => move(i, -1)} disabled={i === 0} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>↑</button>
-            <button onClick={() => move(i, 1)} disabled={i === selected.length - 1} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>↓</button>
-            <button onClick={() => remove(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--series-red, #d64545)" }}>✕</button>
+            <button onClick={() => move(i, -1)} disabled={i === 0} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}><ChevronUp size={14} /></button>
+            <button onClick={() => move(i, 1)} disabled={i === selected.length - 1} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}><ChevronDown size={14} /></button>
+            <button onClick={() => remove(p.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--series-red, #d64545)", display: "flex" }}><X size={14} /></button>
           </div>
         ))}
       </div>
       <button
         onClick={() => setPicking((v) => !v)}
-        style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}
+        style={{ display: "flex", alignItems: "center", gap: 4, background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}
       >
-        {picking ? "Close" : "+ Add product"}
+        {picking ? (
+          <>
+            <X size={13} /> Close
+          </>
+        ) : (
+          <>
+            <Plus size={13} /> Add product
+          </>
+        )}
       </button>
       {picking && (
         <ProductPicker
@@ -235,17 +244,17 @@ export function ElementEditor({
     <div>
       <button
         onClick={onDeselect}
-        style={{ background: "none", border: "none", color: "var(--series-blue)", cursor: "pointer", fontSize: 12, padding: 0, marginBottom: 12 }}
+        style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: "var(--series-blue)", cursor: "pointer", fontSize: 12, padding: 0, marginBottom: 12 }}
       >
-        ← Page settings
+        <ArrowLeft size={13} /> Page settings
       </button>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <h3 style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>{TYPE_LABELS[element.element_type] ?? element.element_type}</h3>
         <button
           onClick={onDelete}
-          style={{ background: "none", border: "none", color: "var(--series-red, #d64545)", cursor: "pointer", fontSize: 12 }}
+          style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: "var(--series-red, #d64545)", cursor: "pointer", fontSize: 12 }}
         >
-          Delete
+          <Trash2 size={13} /> Delete
         </button>
       </div>
       {element.element_type === "button" && <ButtonEditor config={element.config} onChange={onConfigChange} />}

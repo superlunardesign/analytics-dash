@@ -1,3 +1,5 @@
+import { motion } from "framer-motion";
+import { ImageIcon, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { uploadImage } from "../../api";
 
@@ -28,13 +30,26 @@ export function ImageUploadField({ label, value, onChange }: ImageUploadFieldPro
     <div style={{ marginBottom: 10 }}>
       <label style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>{label}</label>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        {value && (
-          <img
-            src={value}
-            alt=""
-            style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover", border: "1px solid var(--border)" }}
-          />
-        )}
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 6,
+            border: "1px solid var(--border)",
+            background: "var(--gridline)",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "hidden",
+          }}
+        >
+          {value ? (
+            <img src={value} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <ImageIcon size={16} color="var(--text-muted)" />
+          )}
+        </div>
         <input
           type="text"
           value={value}
@@ -50,10 +65,15 @@ export function ImageUploadField({ label, value, onChange }: ImageUploadFieldPro
             fontSize: 12,
           }}
         />
-        <button
+        <motion.button
+          whileHover={{ scale: uploading ? 1 : 1.04 }}
+          whileTap={{ scale: uploading ? 1 : 0.97 }}
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
             background: "transparent",
             border: "1px solid var(--border)",
             borderRadius: 6,
@@ -64,8 +84,9 @@ export function ImageUploadField({ label, value, onChange }: ImageUploadFieldPro
             whiteSpace: "nowrap",
           }}
         >
+          <Upload size={13} />
           {uploading ? "Uploading…" : "Upload"}
-        </button>
+        </motion.button>
         <input
           ref={fileRef}
           type="file"

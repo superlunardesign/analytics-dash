@@ -1,3 +1,5 @@
+import { AnimatePresence, motion } from "framer-motion";
+import { ExternalLink, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createElement,
@@ -15,6 +17,7 @@ import { AddElementPanel } from "../components/builder/AddElementPanel";
 import { ElementEditor } from "../components/builder/ElementEditor";
 import { PagePreview } from "../components/builder/PagePreview";
 import { PageSettingsEditor } from "../components/builder/PageSettingsEditor";
+import { ToastStack, useToastStack } from "../components/Toast";
 import type { CreatorPage, CreatorPageDetail, ElementConfig, ElementType, Product, SocialLinksMap } from "../types";
 
 const DEFAULT_CONFIG: Record<ElementType, ElementConfig> = {
@@ -50,7 +53,8 @@ export function LinkEditorPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [creatingPage, setCreatingPage] = useState(false);
   const [newPageTitle, setNewPageTitle] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const toastStack = useToastStack();
 
   useEffect(() => {
     (async () => {
@@ -77,7 +81,7 @@ export function LinkEditorPage() {
   const savePageSettings = useDebouncedSave((updates: Partial<CreatorPage>) => {
     if (!currentPageId) return;
     updatePage(currentPageId, updates).catch((err) =>
-      setError(err instanceof Error ? err.message : "Couldn't save page settings")
+      toastStack.push(err instanceof Error ? err.message : "Couldn't save page settings")
     );
   });
 
@@ -94,7 +98,7 @@ export function LinkEditorPage() {
   const saveElementConfig = useDebouncedSave(({ elementId, elementType, config }: { elementId: string; elementType: ElementType; config: ElementConfig }) => {
     if (!currentPageId) return;
     updateElement(currentPageId, elementId, elementType, config).catch((err) =>
-      setError(err instanceof Error ? err.message : "Couldn't save this block")
+      toastStack.push(err instanceof Error ? err.message : "Couldn't save this block")
     );
   });
 
@@ -116,7 +120,7 @@ export function LinkEditorPage() {
       setPageDetail((prev) => (prev ? { ...prev, elements: [...prev.elements, element] } : prev));
       setSelectedElementId(element.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't add that block");
+      toastStack.push(err instanceof Error ? err.message : "Couldn't add that block");
     }
   };
 
@@ -127,7 +131,7 @@ export function LinkEditorPage() {
     try {
       await deleteElement(currentPageId, elementId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't delete that block");
+      toastStack.push(err instanceof Error ? err.message : "Couldn't delete that block");
     }
   };
 
@@ -138,7 +142,7 @@ export function LinkEditorPage() {
     try {
       await reorderElements(currentPageId, orderedIds);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't save the new order");
+      toastStack.push(err instanceof Error ? err.message : "Couldn't save the new order");
     }
   };
 
@@ -156,7 +160,7 @@ export function LinkEditorPage() {
       setNewPageTitle("");
       setCreatingPage(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't create that page -- try a different title/slug");
+      setFormError(err instanceof Error ? err.message : "Couldn't create that page -- try a different title/slug");
     }
   };
 
@@ -209,7 +213,7 @@ export function LinkEditorPage() {
             </button>
           )}
         </div>
-        {error && <p style={{ fontSize: 12, color: "var(--series-red, #d64545)", marginTop: 10 }}>{error}</p>}
+        {formError && <p style={{ fontSize: 12, color: "var(--series-red, #d64545)", marginTop: 10 }}>{formError}</p>}
       </div>
     );
   }
@@ -242,30 +246,21 @@ export function LinkEditorPage() {
         </select>
         <button
           onClick={() => setCreatingPage(true)}
-          style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontSize: 13, color: "var(--text-secondary)", cursor: "pointer" }}
+          style={{ display: "flex", alignItems: "center", gap: 5, background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 12px", fontSize: 13, color: "var(--text-secondary)", cursor: "pointer" }}
         >
-          + New page
+          <Plus size={14} /> New page
         </button>
         {pageDetail?.is_published && (
           <a
             href={`/p/${pageDetail.slug}`}
             target="_blank"
             rel="noreferrer"
-            style={{ fontSize: 13, color: "var(--series-blue)", marginLeft: "auto" }}
+            style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, color: "var(--series-blue)", marginLeft: "auto", textDecoration: "none" }}
           >
-            View live page ↗
+            View live page <ExternalLink size={13} />
           </a>
         )}
       </div>
-
-      {error && (
-        <p style={{ fontSize: 12, color: "var(--series-red, #d64545)", marginBottom: 12 }}>
-          {error}{" "}
-          <button onClick={() => setError(null)} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", textDecoration: "underline" }}>
-            dismiss
-          </button>
-        </p>
-      )}
 
       {pageDetail && (
         <div style={{ display: "grid", gridTemplateColumns: "240px 1fr 320px", gap: 20, alignItems: "start" }}>
@@ -293,29 +288,41 @@ export function LinkEditorPage() {
               padding: 16,
               position: "sticky",
               top: 20,
+              overflow: "hidden",
             }}
           >
-            {selectedElement ? (
-              <ElementEditor
-                element={selectedElement}
-                products={products}
-                socialLinks={pageDetail.social_links ?? {}}
-                onConfigChange={(config) => handleElementConfigChange(selectedElement.id, config)}
-                onSocialLinksChange={handleSocialLinksChange}
-                onProductSaved={(product) =>
-                  setProducts((prev) =>
-                    prev.some((p) => p.id === product.id) ? prev.map((p) => (p.id === product.id ? product : p)) : [...prev, product]
-                  )
-                }
-                onDelete={() => handleDeleteElement(selectedElement.id)}
-                onDeselect={() => setSelectedElementId(null)}
-              />
-            ) : (
-              <PageSettingsEditor page={pageDetail} onChange={handlePageSettingsChange} onDelete={handleDeletePage} />
-            )}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={selectedElement?.id ?? "page-settings"}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.15 }}
+              >
+                {selectedElement ? (
+                  <ElementEditor
+                    element={selectedElement}
+                    products={products}
+                    socialLinks={pageDetail.social_links ?? {}}
+                    onConfigChange={(config) => handleElementConfigChange(selectedElement.id, config)}
+                    onSocialLinksChange={handleSocialLinksChange}
+                    onProductSaved={(product) =>
+                      setProducts((prev) =>
+                        prev.some((p) => p.id === product.id) ? prev.map((p) => (p.id === product.id ? product : p)) : [...prev, product]
+                      )
+                    }
+                    onDelete={() => handleDeleteElement(selectedElement.id)}
+                    onDeselect={() => setSelectedElementId(null)}
+                  />
+                ) : (
+                  <PageSettingsEditor page={pageDetail} onChange={handlePageSettingsChange} onDelete={handleDeletePage} />
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       )}
+      <ToastStack toasts={toastStack.toasts} onDismiss={toastStack.dismiss} />
     </div>
   );
 }

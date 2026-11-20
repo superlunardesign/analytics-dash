@@ -1,3 +1,4 @@
+import { Pencil, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 import { createProduct, previewLink, updateProduct } from "../../api";
 import type { Product } from "../../types";
@@ -153,9 +154,9 @@ export function ProductPicker({ products, onAdd, onProductUpdated, onClose }: Pr
         </div>
         <button
           onClick={onClose}
-          style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 12 }}
+          style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 12 }}
         >
-          Close
+          <X size={13} /> Close
         </button>
       </div>
 
@@ -204,9 +205,9 @@ export function ProductPicker({ products, onAdd, onProductUpdated, onClose }: Pr
               <button
                 onClick={() => startEditing(p)}
                 title="Edit this product"
-                style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
+                style={{ display: "flex", background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", flexShrink: 0, padding: 4 }}
               >
-                Edit
+                <Pencil size={13} />
               </button>
             </div>
           ))}
@@ -238,6 +239,9 @@ export function ProductPicker({ products, onAdd, onProductUpdated, onClose }: Pr
               onClick={handleFetchPreview}
               disabled={fetching || !draft.sourceUrl.trim()}
               style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
                 background: "var(--series-violet)",
                 border: "none",
                 borderRadius: 6,
@@ -248,6 +252,7 @@ export function ProductPicker({ products, onAdd, onProductUpdated, onClose }: Pr
                 whiteSpace: "nowrap",
               }}
             >
+              <Sparkles size={13} />
               {fetching ? "Fetching…" : "Fetch preview"}
             </button>
           </div>

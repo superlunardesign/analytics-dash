@@ -1,6 +1,8 @@
+import { Trash2 } from "lucide-react";
 import type { CreatorPage, PageTheme } from "../../types";
 import { ColorField } from "./ColorField";
 import { ImageUploadField } from "./ImageUploadField";
+import { ToggleSwitch } from "./ToggleSwitch";
 
 interface PageSettingsEditorProps {
   page: CreatorPage;
@@ -29,10 +31,7 @@ export function PageSettingsEditor({ page, onChange, onDelete }: PageSettingsEdi
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <h3 style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>Page settings</h3>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)" }}>
-          <input type="checkbox" checked={page.is_published} onChange={(e) => onChange({ is_published: e.target.checked })} />
-          Published
-        </label>
+        <ToggleSwitch checked={page.is_published} onChange={(checked) => onChange({ is_published: checked })} label="Published" />
       </div>
 
       <label style={labelStyle}>
@@ -73,6 +72,9 @@ export function PageSettingsEditor({ page, onChange, onDelete }: PageSettingsEdi
       <button
         onClick={onDelete}
         style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
           marginTop: 16,
           background: "transparent",
           border: "1px solid var(--series-red, #d64545)",
@@ -83,7 +85,7 @@ export function PageSettingsEditor({ page, onChange, onDelete }: PageSettingsEdi
           cursor: "pointer",
         }}
       >
-        Delete this page
+        <Trash2 size={13} /> Delete this page
       </button>
     </div>
   );

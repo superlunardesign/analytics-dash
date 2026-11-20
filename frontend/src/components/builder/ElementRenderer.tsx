@@ -1,3 +1,8 @@
+import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useRef } from "react";
+import type { IconType } from "react-icons";
+import { FaFacebook, FaInstagram, FaPinterest, FaThreads, FaTiktok, FaYoutube } from "react-icons/fa6";
 import type { CarouselConfig, CarouselProductRef, PageElement, Product } from "../../types";
 
 interface ElementRendererProps {
@@ -14,16 +19,13 @@ interface ElementRendererProps {
   productsById?: Map<string, Product>;
 }
 
-// No icon library is installed in this app (plain CSS throughout) --
-// short labels in a colored circle rather than brand glyphs. Swap for
-// real icon assets later if wanted.
-const SOCIAL_ABBR: Record<string, string> = {
-  instagram: "IG",
-  tiktok: "TT",
-  pinterest: "PIN",
-  facebook: "FB",
-  threads: "TH",
-  youtube: "YT",
+const SOCIAL_ICON: Record<string, IconType> = {
+  instagram: FaInstagram,
+  tiktok: FaTiktok,
+  pinterest: FaPinterest,
+  facebook: FaFacebook,
+  threads: FaThreads,
+  youtube: FaYoutube,
 };
 
 const SOCIAL_URL: Record<string, (handle: string) => string> = {
@@ -46,20 +48,24 @@ function Link({ href, onLinkClick, interactive, children, style }: {
     return <div style={style}>{children}</div>;
   }
   return (
-    <a
+    <motion.a
       href={href}
       target="_blank"
       rel="noreferrer"
       onClick={() => onLinkClick?.(href)}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
       style={{ ...style, textDecoration: "none", display: "block" }}
     >
       {children}
-    </a>
+    </motion.a>
   );
 }
 
 export function ElementRenderer({ element, interactive, onLinkClick, productsById }: ElementRendererProps) {
   const c = element.config;
+  const carouselScrollRef = useRef<HTMLDivElement>(null);
+  const scrollCarousel = (dir: -1 | 1) => carouselScrollRef.current?.scrollBy({ left: dir * 180, behavior: "smooth" });
 
   switch (element.element_type) {
     case "button": {
@@ -113,21 +119,79 @@ export function ElementRenderer({ element, interactive, onLinkClick, productsByI
           .filter((p): p is Product => !!p)
           .map((p) => ({ id: p.id, name: p.name, description: p.description, image_url: p.image_url, source_url: p.source_url }));
       return (
-        <div>
+        <div style={{ width: "100%", minWidth: 0 }}>
           {config.heading && <div style={{ fontSize: 14, color: "#111", marginBottom: 8 }}>{config.heading}</div>}
-          <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
-            {resolvedProducts.map((p) => (
-              <Link key={p.id} href={p.source_url} interactive={interactive} onLinkClick={(url) => onLinkClick?.(url, p.id)}>
-                <div style={{ width: 84, flexShrink: 0 }}>
-                  <div style={{ width: 84, height: 84, borderRadius: 8, background: "#eee", overflow: "hidden" }}>
-                    {p.image_url && <img src={p.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+          <div style={{ position: "relative", width: "100%", minWidth: 0 }}>
+            <div
+              ref={carouselScrollRef}
+              style={{
+                display: "flex",
+                gap: 10,
+                overflowX: "auto",
+                paddingBottom: 4,
+                scrollbarWidth: "none",
+                width: "100%",
+              }}
+            >
+              {resolvedProducts.map((p) => (
+                <Link key={p.id} href={p.source_url} interactive={interactive} onLinkClick={(url) => onLinkClick?.(url, p.id)}>
+                  <div style={{ width: 84, flexShrink: 0 }}>
+                    <div style={{ width: 84, height: 84, borderRadius: 8, background: "#eee", overflow: "hidden" }}>
+                      {p.image_url && <img src={p.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#333", marginTop: 4, lineHeight: 1.3 }}>{p.name}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: "#333", marginTop: 4, lineHeight: 1.3 }}>{p.name}</div>
-                </div>
-              </Link>
-            ))}
-            {resolvedProducts.length === 0 && (
-              <div style={{ fontSize: 12, color: "#999" }}>No products added yet.</div>
+                </Link>
+              ))}
+              {resolvedProducts.length === 0 && (
+                <div style={{ fontSize: 12, color: "#999" }}>No products added yet.</div>
+              )}
+            </div>
+            {resolvedProducts.length > 3 && (
+              <>
+                <button
+                  onClick={() => scrollCarousel(-1)}
+                  aria-label="Scroll left"
+                  style={{
+                    position: "absolute",
+                    left: -4,
+                    top: 32,
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: "rgba(255,255,255,0.95)",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <button
+                  onClick={() => scrollCarousel(1)}
+                  aria-label="Scroll right"
+                  style={{
+                    position: "absolute",
+                    right: -4,
+                    top: 32,
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: "rgba(255,255,255,0.95)",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -196,6 +260,7 @@ export function SocialLinksRow({
     <div style={{ display: "flex", gap: 8 }}>
       {entries.map(([platform, handle]) => {
         const href = SOCIAL_URL[platform]?.(handle!) ?? "";
+        const Icon = SOCIAL_ICON[platform];
         const content = (
           <div
             style={{
@@ -207,11 +272,9 @@ export function SocialLinksRow({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 9,
-              fontWeight: 700,
             }}
           >
-            {SOCIAL_ABBR[platform] ?? platform.slice(0, 2).toUpperCase()}
+            {Icon ? <Icon size={16} /> : <span style={{ fontSize: 9, fontWeight: 700 }}>{platform.slice(0, 2).toUpperCase()}</span>}
           </div>
         );
         return interactive ? (
