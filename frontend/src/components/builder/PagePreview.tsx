@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { GripVertical, Menu, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CreatorPage, PageElement, Product } from "../../types";
 import { ElementRenderer, SocialLinksRow } from "./ElementRenderer";
 
@@ -19,6 +19,17 @@ export function PagePreview({ page, elements, products, selectedElementId, onSel
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const theme = page.theme ?? {};
   const productsById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const elementRefs = useRef(new Map<string, HTMLDivElement>());
+
+  // Newly added blocks append at the end of a growing list, off-screen
+  // below the fold once there are enough of them -- without this, adding
+  // one can look like nothing happened (or that the page stopped
+  // growing) instead of "scroll down to see it." Also helps when picking
+  // an element back up after scrolling away from it.
+  useEffect(() => {
+    if (!selectedElementId) return;
+    elementRefs.current.get(selectedElementId)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [selectedElementId]);
 
   const handleDrop = (targetId: string) => {
     if (!draggingId || draggingId === targetId) return;
@@ -80,6 +91,10 @@ export function PagePreview({ page, elements, products, selectedElementId, onSel
               {elements.map((el) => (
                 <motion.div
                   key={el.id}
+                  ref={(node) => {
+                    if (node) elementRefs.current.set(el.id, node);
+                    else elementRefs.current.delete(el.id);
+                  }}
                   layout
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
