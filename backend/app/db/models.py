@@ -352,6 +352,150 @@ class WebsiteFormSubmission(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 
+class ElementType(str, enum.Enum):
+    BUTTON = "button"
+    CARD_LINK = "card_link"
+    CAROUSEL = "carousel"
+    SOCIAL_LINKS = "social_links"
+    TEXT = "text"
+    LINE = "line"
+    PHOTO = "photo"
+
+
+class CreatorPage(Base):
+    """One buildable link-in-bio page (a creator can have several, e.g. a
+    main page plus a campaign-specific one). Rendered publicly at
+    /p/{slug} once published; everything else here is private-dashboard
+    data, never served to a visitor directly."""
+
+    __tablename__ = "creator_pages"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    slug: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    # The @handle shown at the top of the page (e.g. "@tinasuze") -- display
+    # only, independent of any social_links entry below.
+    handle: Mapped[str | None] = mapped_column(String, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
+
+    # Background gradient, accent/button colors, etc -- one JSON blob since
+    # this is purely cosmetic styling the builder UI owns, never something
+    # a query needs to filter/aggregate on.
+    theme: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    # Page-level social icon row, e.g. {"instagram": "tinasuze", "tiktok":
+    # "tinasuze", "pinterest": "thumbelinaa"}. A SOCIAL_LINKS element just
+    # renders this wherever it's placed, so there's one list of accounts
+    # to keep current regardless of how many places show them.
+    social_links: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    elements: Mapped[list["PageElement"]] = relationship(
+        back_populates="page", cascade="all, delete-orphan", order_by="PageElement.position"
+    )
+
+
+class PageElement(Base):
+    """One block on a CreatorPage, in display order (position). config's
+    shape depends on element_type -- kept as JSON rather than one column
+    per possible field across 7 very different element types (a button's
+    label/url/gradient vs. a carousel's heading/product_ids vs. a line's
+    style/color have almost nothing in common); see frontend/src/types.ts
+    for the shape each type expects."""
+
+    __tablename__ = "page_elements"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    page_id: Mapped[str] = mapped_column(String, ForeignKey("creator_pages.id"), nullable=False, index=True)
+    element_type: Mapped[ElementType] = mapped_column(Enum(ElementType), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    page: Mapped[CreatorPage] = relationship(back_populates="elements")
+
+
+class Product(Base):
+    """One affiliate-link product in the catalog, usable across any
+    number of CARD_LINK/CAROUSEL elements (their config just references
+    product_id(s)) -- not owned by a single page, since the same Amazon
+    link might reasonably show up in more than one carousel.
+
+    image_url is whatever actually renders (custom_image_url if the
+    creator uploaded/picked one, else og_image_url); kept as its own
+    resolved column so every reader doesn't need to know the fallback
+    rule, but both source values are kept too so switching back is just a
+    write, not a re-fetch."""
+
+    __tablename__ = "products"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    source_url: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Fetched automatically from the link's og:image (see
+    # app/integrations/link_preview.py); overwritten by whichever the
+    # creator actually picks/uploads, which resolved image_url reflects.
+    og_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    custom_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class PageVisit(Base):
+    """One visit to a published CreatorPage, logged by the public page
+    renderer on load -- powers the "Page Visits" line chart. Deliberately
+    minimal (no IP/user-agent capture) since nothing here needs more than
+    a daily count."""
+
+    __tablename__ = "page_visits"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    page_id: Mapped[str] = mapped_column(
+        String, ForeignKey("creator_pages.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    visited_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    referrer: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class LinkClick(Base):
+    """One click on any link/button/product on a published CreatorPage --
+    powers "Top Link Clicks" and "Top Products". link_url is stored
+    directly (not just inferred from element_id/product_id) so a click
+    stays attributable even after the element/product it pointed at is
+    later edited or deleted -- hence SET NULL rather than blocking that
+    delete."""
+
+    __tablename__ = "link_clicks"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    page_id: Mapped[str] = mapped_column(
+        String, ForeignKey("creator_pages.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    element_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("page_elements.id", ondelete="SET NULL"), nullable=True
+    )
+    product_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    link_url: Mapped[str] = mapped_column(String, nullable=False)
+    clicked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+
+
 class WixFormSchema(Base):
     """Cached field-label schema for one Wix form (from the Form Schema
     API), refreshed on every sync. Submission answers are keyed by a

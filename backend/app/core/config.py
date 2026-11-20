@@ -73,6 +73,14 @@ class Settings(BaseSettings):
             return "postgresql://" + v[len("postgres://") :]
         return v
 
+    # Supabase Storage (creator page builder image uploads -- product
+    # photos, page photo blocks). Only Storage is used here, not Supabase's
+    # own Postgres -- this app's relational data stays in `database_url`
+    # above; Supabase is just an object store + CDN for files.
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
+    supabase_storage_bucket: str = "creator-page-uploads"
+
 
 @lru_cache
 def get_settings() -> Settings:
