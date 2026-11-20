@@ -36,6 +36,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await resp.text();
     throw new Error(`${resp.status} ${resp.statusText}: ${body}`);
   }
+  // DELETE endpoints return 204 No Content -- calling .json() on an empty
+  // body throws "Unexpected end of JSON input" rather than returning
+  // undefined, so every delete call surfaced a (harmless but alarming)
+  // error. 205/304 are the same "no body" case.
+  if (resp.status === 204 || resp.status === 205 || resp.status === 304) {
+    return undefined as T;
+  }
   return resp.json() as Promise<T>;
 }
 

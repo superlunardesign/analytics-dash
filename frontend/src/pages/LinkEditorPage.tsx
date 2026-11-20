@@ -280,6 +280,7 @@ export function LinkEditorPage() {
             products={products}
             selectedElementId={selectedElementId}
             onSelect={setSelectedElementId}
+            onDeselect={() => setSelectedElementId(null)}
             onDelete={handleDeleteElement}
             onReorder={handleReorder}
           />
@@ -301,10 +302,13 @@ export function LinkEditorPage() {
                 socialLinks={pageDetail.social_links ?? {}}
                 onConfigChange={(config) => handleElementConfigChange(selectedElement.id, config)}
                 onSocialLinksChange={handleSocialLinksChange}
-                onProductCreated={(product) =>
-                  setProducts((prev) => (prev.some((p) => p.id === product.id) ? prev : [...prev, product]))
+                onProductSaved={(product) =>
+                  setProducts((prev) =>
+                    prev.some((p) => p.id === product.id) ? prev.map((p) => (p.id === product.id ? product : p)) : [...prev, product]
+                  )
                 }
                 onDelete={() => handleDeleteElement(selectedElement.id)}
+                onDeselect={() => setSelectedElementId(null)}
               />
             ) : (
               <PageSettingsEditor page={pageDetail} onChange={handlePageSettingsChange} onDelete={handleDeletePage} />

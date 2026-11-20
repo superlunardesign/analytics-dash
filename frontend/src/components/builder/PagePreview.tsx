@@ -8,11 +8,12 @@ interface PagePreviewProps {
   products: Product[];
   selectedElementId: string | null;
   onSelect: (id: string) => void;
+  onDeselect: () => void;
   onDelete: (id: string) => void;
   onReorder: (orderedIds: string[]) => void;
 }
 
-export function PagePreview({ page, elements, products, selectedElementId, onSelect, onDelete, onReorder }: PagePreviewProps) {
+export function PagePreview({ page, elements, products, selectedElementId, onSelect, onDeselect, onDelete, onReorder }: PagePreviewProps) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const theme = page.theme ?? {};
   const productsById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -30,6 +31,7 @@ export function PagePreview({ page, elements, products, selectedElementId, onSel
 
   return (
     <div
+      onClick={onDeselect}
       style={{
         width: 340,
         margin: "0 auto",
@@ -39,7 +41,7 @@ export function PagePreview({ page, elements, products, selectedElementId, onSel
         background: `linear-gradient(160deg, ${theme.background_from ?? "#ffd9a8"}, ${theme.background_to ?? "#ffc2e0"})`,
       }}
     >
-      <div style={{ padding: "20px 16px", minHeight: 500 }}>
+      <div style={{ padding: "20px 16px", minHeight: 500 }} onClick={onDeselect}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
           <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#fff", overflow: "hidden", flexShrink: 0 }}>
             {page.avatar_url && <img src={page.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
@@ -47,7 +49,10 @@ export function PagePreview({ page, elements, products, selectedElementId, onSel
           <div style={{ fontWeight: 700, fontSize: 15, color: "#111" }}>{page.handle || page.title}</div>
         </div>
 
-        <div style={{ background: "rgba(255,255,255,0.85)", borderRadius: 16, padding: 14, display: "grid", gap: 12 }}>
+        <div
+          onClick={onDeselect}
+          style={{ background: "rgba(255,255,255,0.85)", borderRadius: 16, padding: 14, display: "grid", gap: 12 }}
+        >
           {elements.length === 0 && (
             <p style={{ fontSize: 12, color: "#999", textAlign: "center", padding: "20px 0" }}>
               Add your first block from the left.
@@ -60,7 +65,10 @@ export function PagePreview({ page, elements, products, selectedElementId, onSel
                 onDragStart={() => setDraggingId(el.id)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => handleDrop(el.id)}
-                onClick={() => onSelect(el.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelect(el.id);
+                }}
                 style={{
                   position: "relative",
                   cursor: "pointer",

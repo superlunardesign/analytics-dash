@@ -10,8 +10,9 @@ interface ElementEditorProps {
   socialLinks: SocialLinksMap;
   onConfigChange: (config: ElementConfig) => void;
   onSocialLinksChange: (links: SocialLinksMap) => void;
-  onProductCreated: (product: Product) => void;
+  onProductSaved: (product: Product) => void;
   onDelete: () => void;
+  onDeselect: () => void;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -82,12 +83,12 @@ function CarouselEditor({
   config,
   products,
   onChange,
-  onProductCreated,
+  onProductSaved,
 }: {
   config: ElementConfig;
   products: Product[];
   onChange: (c: ElementConfig) => void;
-  onProductCreated: (product: Product) => void;
+  onProductSaved: (product: Product) => void;
 }) {
   const [picking, setPicking] = useState(false);
   const productIds = (config.product_ids as string[]) ?? [];
@@ -136,8 +137,9 @@ function CarouselEditor({
         <ProductPicker
           products={products}
           onClose={() => setPicking(false)}
+          onProductUpdated={onProductSaved}
           onAdd={(product) => {
-            onProductCreated(product);
+            onProductSaved(product);
             if (!productIds.includes(product.id)) setIds([...productIds, product.id]);
           }}
         />
@@ -225,11 +227,18 @@ export function ElementEditor({
   socialLinks,
   onConfigChange,
   onSocialLinksChange,
-  onProductCreated,
+  onProductSaved,
   onDelete,
+  onDeselect,
 }: ElementEditorProps) {
   return (
     <div>
+      <button
+        onClick={onDeselect}
+        style={{ background: "none", border: "none", color: "var(--series-blue)", cursor: "pointer", fontSize: 12, padding: 0, marginBottom: 12 }}
+      >
+        ← Page settings
+      </button>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <h3 style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>{TYPE_LABELS[element.element_type] ?? element.element_type}</h3>
         <button
@@ -242,7 +251,7 @@ export function ElementEditor({
       {element.element_type === "button" && <ButtonEditor config={element.config} onChange={onConfigChange} />}
       {element.element_type === "card_link" && <CardLinkEditor config={element.config} onChange={onConfigChange} />}
       {element.element_type === "carousel" && (
-        <CarouselEditor config={element.config} products={products} onChange={onConfigChange} onProductCreated={onProductCreated} />
+        <CarouselEditor config={element.config} products={products} onChange={onConfigChange} onProductSaved={onProductSaved} />
       )}
       {element.element_type === "social_links" && (
         <SocialLinksEditor socialLinks={socialLinks} onChange={onSocialLinksChange} />

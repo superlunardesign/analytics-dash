@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { createProduct, previewLink } from "../../api";
+import { createProduct, previewLink, updateProduct } from "../../api";
 import type { Product } from "../../types";
 import { ImageUploadField } from "./ImageUploadField";
 
 interface ProductPickerProps {
   products: Product[];
   onAdd: (product: Product) => void;
+  // Catalog-only update (editing an existing product's details) -- does
+  // NOT add/re-add it to the current carousel, unlike onAdd.
+  onProductUpdated: (product: Product) => void;
   onClose: () => void;
 }
 
@@ -21,13 +24,32 @@ interface DraftProduct {
 
 const EMPTY_DRAFT: DraftProduct = { sourceUrl: "", name: "", description: "", imageUrl: "" };
 
-export function ProductPicker({ products, onAdd, onClose }: ProductPickerProps) {
+export function ProductPicker({ products, onAdd, onProductUpdated, onClose }: ProductPickerProps) {
   const [mode, setMode] = useState<"existing" | "new">(products.length > 0 ? "existing" : "new");
   const [draft, setDraft] = useState<DraftProduct>(EMPTY_DRAFT);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
   const [fetchNote, setFetchNote] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const startEditing = (product: Product) => {
+    setEditingId(product.id);
+    setDraft({
+      sourceUrl: product.source_url,
+      name: product.name,
+      description: product.description ?? "",
+      imageUrl: product.image_url ?? "",
+    });
+    setError(null);
+    setMode("new");
+  };
+
+  const cancelForm = () => {
+    setEditingId(null);
+    setDraft(EMPTY_DRAFT);
+    setMode(products.length > 0 ? "existing" : "new");
+  };
 
   const handleFetchPreview = async () => {
     if (!draft.sourceUrl.trim()) return;
@@ -61,15 +83,26 @@ export function ProductPicker({ products, onAdd, onClose }: ProductPickerProps) 
     setSaving(true);
     setError(null);
     try {
-      const product = await createProduct({
-        source_url: draft.sourceUrl.trim(),
-        name: draft.name.trim(),
-        description: draft.description.trim() || null,
-        og_image_url: draft.imageUrl || null,
-        image_url: draft.imageUrl || null,
-      });
-      onAdd(product);
-      setDraft(EMPTY_DRAFT);
+      if (editingId) {
+        const product = await updateProduct(editingId, {
+          source_url: draft.sourceUrl.trim(),
+          name: draft.name.trim(),
+          description: draft.description.trim() || null,
+          custom_image_url: draft.imageUrl || null,
+          image_url: draft.imageUrl || null,
+        });
+        onProductUpdated(product);
+      } else {
+        const product = await createProduct({
+          source_url: draft.sourceUrl.trim(),
+          name: draft.name.trim(),
+          description: draft.description.trim() || null,
+          og_image_url: draft.imageUrl || null,
+          image_url: draft.imageUrl || null,
+        });
+        onAdd(product);
+      }
+      cancelForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save this product");
     } finally {
@@ -132,9 +165,8 @@ export function ProductPicker({ products, onAdd, onClose }: ProductPickerProps) 
             <p style={{ fontSize: 12, color: "var(--text-muted)" }}>No products in your catalog yet -- paste a link instead.</p>
           )}
           {products.map((p) => (
-            <button
+            <div
               key={p.id}
-              onClick={() => onAdd(p)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -143,23 +175,49 @@ export function ProductPicker({ products, onAdd, onClose }: ProductPickerProps) 
                 border: "1px solid var(--border)",
                 borderRadius: 6,
                 padding: 6,
-                cursor: "pointer",
-                textAlign: "left",
               }}
             >
-              {p.image_url ? (
-                <img src={p.image_url} alt="" style={{ width: 28, height: 28, borderRadius: 4, objectFit: "cover" }} />
-              ) : (
-                <div style={{ width: 28, height: 28, borderRadius: 4, background: "var(--gridline)" }} />
-              )}
-              <span style={{ fontSize: 12, color: "var(--text-primary)" }}>{p.name}</span>
-            </button>
+              <button
+                onClick={() => onAdd(p)}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  minWidth: 0,
+                }}
+              >
+                {p.image_url ? (
+                  <img src={p.image_url} alt="" style={{ width: 28, height: 28, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: 28, height: 28, borderRadius: 4, background: "var(--gridline)", flexShrink: 0 }} />
+                )}
+                <span style={{ fontSize: 12, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {p.name}
+                </span>
+              </button>
+              <button
+                onClick={() => startEditing(p)}
+                title="Edit this product"
+                style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 12, flexShrink: 0 }}
+              >
+                Edit
+              </button>
+            </div>
           ))}
         </div>
       )}
 
       {mode === "new" && (
         <div>
+          {editingId && (
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 8, fontWeight: 600 }}>Editing product</p>
+          )}
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
             <input
               type="text"
@@ -240,22 +298,32 @@ export function ProductPicker({ products, onAdd, onClose }: ProductPickerProps) 
             onChange={(url) => setDraft((d) => ({ ...d, imageUrl: url }))}
           />
           {error && <p style={{ fontSize: 12, color: "var(--series-red, #d64545)", marginBottom: 8 }}>{error}</p>}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              background: "var(--series-blue)",
-              border: "none",
-              borderRadius: 6,
-              padding: "6px 14px",
-              color: "#fff",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: saving ? "default" : "pointer",
-            }}
-          >
-            {saving ? "Saving…" : "Add to carousel"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                background: "var(--series-blue)",
+                border: "none",
+                borderRadius: 6,
+                padding: "6px 14px",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: saving ? "default" : "pointer",
+              }}
+            >
+              {saving ? "Saving…" : editingId ? "Save changes" : "Add to carousel"}
+            </button>
+            {editingId && (
+              <button
+                onClick={cancelForm}
+                style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 14px", fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
