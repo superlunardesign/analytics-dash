@@ -192,16 +192,23 @@ export function BuilderAnalyticsPage() {
           <p style={{ fontSize: 13, color: TINASUZE_TEXT_MUTED }}>Loading…</p>
         ) : (
           <div style={{ display: "flex", gap: 32, flexWrap: "wrap", marginBottom: 32 }}>
-            <div style={{ flex: "1 1 240px", maxWidth: 320 }}>
+            <div style={{ flex: "1 1 240px", maxWidth: 320, minWidth: 0 }}>
               <h3 style={{ fontSize: 15, fontWeight: 800, color: TINASUZE_TEXT, marginBottom: 14 }}>Top Link Clicks</h3>
               {topLinks.length === 0 ? (
                 <p style={{ fontSize: 12, color: TINASUZE_TEXT_MUTED }}>No clicks in this range yet.</p>
               ) : (
-                <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
                   {topLinks.map((l) => (
-                    <div key={l.link_url} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13 }}>
+                    <div key={l.link_url} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, minWidth: 0 }}>
                       <span
-                        style={{ color: TINASUZE_ACCENT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                        style={{
+                          color: TINASUZE_ACCENT,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          display: "block",
+                          minWidth: 0,
+                        }}
                         title={l.link_url}
                       >
                         {l.link_url}
