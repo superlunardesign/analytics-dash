@@ -11,3 +11,4 @@ python-dotenv==1.0.1
 pyjwt[crypto]==2.9.0
 python-multipart==0.0.12
 beautifulsoup4==4.12.3
+bcrypt==4.2.0

@@ -1,5 +1,6 @@
 import type {
   AccountStatus,
+  AuthStatus,
   CreatorPage,
   CreatorPageDetail,
   DailyTraffic,
@@ -168,6 +169,25 @@ export function getFormNames(): Promise<string[]> {
 
 export function getFormSchemas(): Promise<FormSchema[]> {
   return request("/api/website/form-schema");
+}
+
+// -- Tinasuze dashboard login (gates /api/builder/*; the public page API
+// below needs no auth at all) --
+
+export function login(username: string, password: string): Promise<AuthStatus> {
+  return request("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+}
+
+export function logout(): Promise<void> {
+  return request("/api/auth/logout", { method: "POST" });
+}
+
+export function checkAuthStatus(): Promise<AuthStatus> {
+  return request("/api/auth/status");
 }
 
 // -- Creator page builder --

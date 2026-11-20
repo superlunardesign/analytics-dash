@@ -1,4 +1,6 @@
+import { LogOut } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { logout } from "../api";
 
 const TINASUZE_LINKS = [
   { to: "/builder/analytics", label: "Page Analytics" },
@@ -66,24 +68,55 @@ export function DashboardNav() {
       </div>
 
       {isTinasuze && (
-        <div style={{ display: "flex", gap: 4, padding: "10px 24px", maxWidth: 1200, margin: "0 auto" }}>
-          {TINASUZE_LINKS.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              style={({ isActive }) => ({
-                fontSize: 13,
-                fontWeight: 600,
-                color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
-                background: isActive ? "var(--gridline)" : "transparent",
-                borderRadius: 6,
-                padding: "6px 12px",
-                textDecoration: "none",
-              })}
-            >
-              {link.label}
-            </NavLink>
-          ))}
+        <div
+          style={{
+            display: "flex",
+            gap: 4,
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 24px",
+            maxWidth: 1200,
+            margin: "0 auto",
+          }}
+        >
+          <div style={{ display: "flex", gap: 4 }}>
+            {TINASUZE_LINKS.map((link) => (
+              <NavLink
+                key={link.to}
+                to={link.to}
+                style={({ isActive }) => ({
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+                  background: isActive ? "var(--gridline)" : "transparent",
+                  borderRadius: 6,
+                  padding: "6px 12px",
+                  textDecoration: "none",
+                })}
+              >
+                {link.label}
+              </NavLink>
+            ))}
+          </div>
+          <button
+            onClick={() => logout().finally(() => navigate("/builder/login"))}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "transparent",
+              color: "var(--text-secondary)",
+              border: "none",
+              borderRadius: 6,
+              padding: "6px 10px",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            <LogOut size={14} />
+            Log out
+          </button>
         </div>
       )}
     </div>

@@ -81,6 +81,15 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     supabase_storage_bucket: str = "creator-page-uploads"
 
+    # Tinasuze dashboard login -- a single hardcoded account (no user
+    # table), gating only /api/builder/* (not Superlunar's own routes,
+    # and never /api/public/* -- that's the visitor-facing page). The
+    # password is never stored or compared in plaintext: generate the
+    # hash with `python -c "import bcrypt; print(bcrypt.hashpw(b'yourpassword', bcrypt.gensalt()).decode())"`
+    # and set that as TINASUZE_DASHBOARD_PASSWORD_HASH.
+    tinasuze_dashboard_username: str = ""
+    tinasuze_dashboard_password_hash: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

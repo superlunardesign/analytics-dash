@@ -111,6 +111,11 @@ export interface VideoAnalysis {
   completed_at: string | null;
 }
 
+export interface AuthStatus {
+  authenticated: boolean;
+  username: string | null;
+}
+
 export interface AccountStatus {
   connected: boolean;
   username: string | null;

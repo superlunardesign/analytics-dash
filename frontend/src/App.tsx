@@ -1,8 +1,10 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { DashboardNav } from "./components/DashboardNav";
+import { RequireTinasuzeAuth } from "./components/RequireTinasuzeAuth";
 import { BuilderAnalyticsPage } from "./pages/BuilderAnalyticsPage";
 import { ContentOverviewPage } from "./pages/ContentOverviewPage";
 import { LinkEditorPage } from "./pages/LinkEditorPage";
+import { LoginPage } from "./pages/LoginPage";
 import { PublicPage } from "./pages/PublicPage";
 import { SocialDashboard } from "./pages/SocialDashboard";
 
@@ -22,6 +24,10 @@ function App() {
           DashboardLayout, no nav/chrome, nothing private. */}
       <Route path="/p/:slug" element={<PublicPage />} />
 
+      {/* Not wrapped in RequireTinasuzeAuth -- it's the page you land on
+          to BECOME authenticated, and has no nav chrome of its own. */}
+      <Route path="/builder/login" element={<LoginPage />} />
+
       <Route
         path="/"
         element={
@@ -33,25 +39,31 @@ function App() {
       <Route
         path="/builder/analytics"
         element={
-          <DashboardLayout>
-            <BuilderAnalyticsPage />
-          </DashboardLayout>
+          <RequireTinasuzeAuth>
+            <DashboardLayout>
+              <BuilderAnalyticsPage />
+            </DashboardLayout>
+          </RequireTinasuzeAuth>
         }
       />
       <Route
         path="/builder/content"
         element={
-          <DashboardLayout>
-            <ContentOverviewPage />
-          </DashboardLayout>
+          <RequireTinasuzeAuth>
+            <DashboardLayout>
+              <ContentOverviewPage />
+            </DashboardLayout>
+          </RequireTinasuzeAuth>
         }
       />
       <Route
         path="/builder/editor/*"
         element={
-          <DashboardLayout>
-            <LinkEditorPage />
-          </DashboardLayout>
+          <RequireTinasuzeAuth>
+            <DashboardLayout>
+              <LinkEditorPage />
+            </DashboardLayout>
+          </RequireTinasuzeAuth>
         }
       />
 

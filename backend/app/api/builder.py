@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.auth import current_tinasuze_user
 from app.db.models import CreatorPage, LinkClick, PageElement, PageVisit, Product
 from app.db.session import get_db
 from app.integrations import link_preview
@@ -32,7 +33,7 @@ from app.schemas.builder import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/builder", tags=["builder"])
+router = APIRouter(prefix="/api/builder", tags=["builder"], dependencies=[Depends(current_tinasuze_user)])
 
 
 def _resolve_product_image(custom_image_url: str | None, og_image_url: str | None) -> str | None:
