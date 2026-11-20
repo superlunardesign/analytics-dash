@@ -141,3 +141,21 @@ class LogClickIn(BaseModel):
     link_url: str
     element_id: str | None = None
     product_id: str | None = None
+
+
+# -- Analytics (private dashboard reads of the public page's traffic) --
+
+
+class TopLinkClickOut(BaseModel):
+    link_url: str
+    clicks: int
+
+
+class PageVisitPointOut(BaseModel):
+    date: str
+    visits: int
+
+
+class TopProductOut(BaseModel):
+    product: ProductOut
+    clicks: int

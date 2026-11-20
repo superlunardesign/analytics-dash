@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import CreatorPage, PageElement, Product
+from app.db.models import CreatorPage, LinkClick, PageElement, PageVisit, Product
 from app.db.session import get_db
 from app.integrations import link_preview
 from app.integrations.storage import client as storage
@@ -18,10 +20,13 @@ from app.schemas.builder import (
     LinkPreviewOut,
     PageElementIn,
     PageElementOut,
+    PageVisitPointOut,
     ProductIn,
     ProductOut,
     ProductUpdateIn,
     ReorderElementsIn,
+    TopLinkClickOut,
+    TopProductOut,
     UploadOut,
 )
 
@@ -235,3 +240,62 @@ def delete_product(product_id: str, db: Session = Depends(get_db)) -> None:
     product = _get_product_or_404(product_id, db)
     db.delete(product)
     db.commit()
+
+
+# -- Analytics (the published page's own traffic -- clicks/visits/top
+# products, as logged by app/api/public_pages.py). Aggregated in Python
+# rather than with dialect-specific date-truncation SQL since this app
+# runs on both SQLite (dev) and Postgres (prod) and the row counts here
+# are small enough that it doesn't matter. page_id is optional: omit it
+# to aggregate across every page. --
+
+
+@router.get("/analytics/top-links", response_model=list[TopLinkClickOut])
+def top_link_clicks(
+    start: datetime,
+    end: datetime,
+    page_id: str | None = None,
+    limit: int = Query(20, le=100),
+    db: Session = Depends(get_db),
+) -> list[TopLinkClickOut]:
+    q = db.query(LinkClick.link_url).filter(LinkClick.clicked_at >= start, LinkClick.clicked_at <= end)
+    if page_id:
+        q = q.filter(LinkClick.page_id == page_id)
+    counts = Counter(url for (url,) in q.all())
+    return [TopLinkClickOut(link_url=url, clicks=n) for url, n in counts.most_common(limit)]
+
+
+@router.get("/analytics/visits", response_model=list[PageVisitPointOut])
+def page_visits(
+    start: datetime,
+    end: datetime,
+    page_id: str | None = None,
+    db: Session = Depends(get_db),
+) -> list[PageVisitPointOut]:
+    q = db.query(PageVisit.visited_at).filter(PageVisit.visited_at >= start, PageVisit.visited_at <= end)
+    if page_id:
+        q = q.filter(PageVisit.page_id == page_id)
+    counts: dict[str, int] = {}
+    for (visited_at,) in q.all():
+        day = visited_at.date().isoformat()
+        counts[day] = counts.get(day, 0) + 1
+    return [PageVisitPointOut(date=day, visits=n) for day, n in sorted(counts.items())]
+
+
+@router.get("/analytics/top-products", response_model=list[TopProductOut])
+def top_products(
+    start: datetime,
+    end: datetime,
+    page_id: str | None = None,
+    limit: int = Query(10, le=50),
+    db: Session = Depends(get_db),
+) -> list[TopProductOut]:
+    q = db.query(LinkClick.product_id).filter(
+        LinkClick.clicked_at >= start, LinkClick.clicked_at <= end, LinkClick.product_id.isnot(None)
+    )
+    if page_id:
+        q = q.filter(LinkClick.page_id == page_id)
+    counts = Counter(pid for (pid,) in q.all())
+    top = counts.most_common(limit)
+    products_by_id = {p.id: p for p in db.query(Product).filter(Product.id.in_([pid for pid, _ in top])).all()}
+    return [TopProductOut(product=products_by_id[pid], clicks=n) for pid, n in top if pid in products_by_id]
