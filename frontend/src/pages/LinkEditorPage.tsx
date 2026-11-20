@@ -18,7 +18,15 @@ import { ElementEditor } from "../components/builder/ElementEditor";
 import { PagePreview } from "../components/builder/PagePreview";
 import { PageSettingsEditor } from "../components/builder/PageSettingsEditor";
 import { ToastStack, useToastStack } from "../components/Toast";
+import { TINASUZE_ACCENT, TINASUZE_BORDER, TINASUZE_CARD, TINASUZE_TEXT, TINASUZE_TEXT_MUTED } from "../tinasuzeTheme";
 import type { CreatorPage, CreatorPageDetail, ElementConfig, ElementType, Product, SocialLinksMap } from "../types";
+
+const cardStyle: React.CSSProperties = {
+  background: TINASUZE_CARD,
+  borderRadius: 16,
+  padding: 18,
+  boxShadow: "0 10px 30px rgba(21,17,13,0.06)",
+};
 
 const DEFAULT_CONFIG: Record<ElementType, ElementConfig> = {
   button: { label: "New Button", url: "", gradient_from: "#ff8a3d", gradient_to: "#ff4fa3" },
@@ -174,13 +182,13 @@ export function LinkEditorPage() {
   };
 
   if (pagesLoading) {
-    return <div style={{ maxWidth: 1200, margin: "0 auto", padding: 24, color: "var(--text-muted)" }}>Loading…</div>;
+    return <div style={{ maxWidth: 1200, margin: "0 auto", padding: 24, color: TINASUZE_TEXT_MUTED }}>Loading…</div>;
   }
 
   if (pages.length === 0 || creatingPage) {
     return (
-      <div style={{ maxWidth: 420, margin: "60px auto", padding: 24, textAlign: "center" }}>
-        <h2 style={{ fontSize: 16, marginBottom: 12 }}>{pages.length === 0 ? "Create your first page" : "New page"}</h2>
+      <div style={{ maxWidth: 420, margin: "60px auto", padding: 24, textAlign: "center", ...cardStyle }}>
+        <h2 style={{ fontSize: 16, marginBottom: 12, color: TINASUZE_TEXT }}>{pages.length === 0 ? "Create your first page" : "New page"}</h2>
         <input
           type="text"
           value={newPageTitle}
@@ -188,32 +196,33 @@ export function LinkEditorPage() {
           placeholder="Page title, e.g. Main"
           style={{
             width: "100%",
-            background: "var(--surface-1)",
-            color: "var(--text-primary)",
-            border: "1px solid var(--border)",
+            background: "#fff",
+            color: TINASUZE_TEXT,
+            border: `1px solid ${TINASUZE_BORDER}`,
             borderRadius: 6,
             padding: "8px 10px",
             fontSize: 14,
             marginBottom: 10,
+            boxSizing: "border-box",
           }}
         />
         <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
           <button
             onClick={handleCreatePage}
-            style={{ background: "var(--series-blue)", border: "none", borderRadius: 6, padding: "8px 16px", color: "#fff", cursor: "pointer" }}
+            style={{ background: TINASUZE_ACCENT, border: "none", borderRadius: 6, padding: "8px 16px", color: "#fff", fontWeight: 700, cursor: "pointer" }}
           >
             Create
           </button>
           {pages.length > 0 && (
             <button
               onClick={() => setCreatingPage(false)}
-              style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 6, padding: "8px 16px", color: "var(--text-secondary)", cursor: "pointer" }}
+              style={{ background: "transparent", border: `1px solid ${TINASUZE_BORDER}`, borderRadius: 6, padding: "8px 16px", color: TINASUZE_TEXT_MUTED, cursor: "pointer" }}
             >
               Cancel
             </button>
           )}
         </div>
-        {formError && <p style={{ fontSize: 12, color: "var(--series-red, #d64545)", marginTop: 10 }}>{formError}</p>}
+        {formError && <p style={{ fontSize: 12, color: "#d6294f", marginTop: 10 }}>{formError}</p>}
       </div>
     );
   }

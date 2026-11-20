@@ -7,10 +7,23 @@ import { LinkEditorPage } from "./pages/LinkEditorPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PublicPage } from "./pages/PublicPage";
 import { SocialDashboard } from "./pages/SocialDashboard";
+import { TINASUZE_GRADIENT } from "./tinasuzeTheme";
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div>
+      <DashboardNav />
+      {children}
+    </div>
+  );
+}
+
+// Tinasuze's own warm-gradient brand background, fixed (not theme/dark-mode
+// aware -- see tinasuzeTheme.ts) and scoped to just her side of the app so
+// Superlunar's dashboard is untouched.
+function TinasuzeLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ minHeight: "100vh", background: TINASUZE_GRADIENT }}>
       <DashboardNav />
       {children}
     </div>
@@ -40,9 +53,9 @@ function App() {
         path="/builder/analytics"
         element={
           <RequireTinasuzeAuth>
-            <DashboardLayout>
+            <TinasuzeLayout>
               <BuilderAnalyticsPage />
-            </DashboardLayout>
+            </TinasuzeLayout>
           </RequireTinasuzeAuth>
         }
       />
@@ -50,9 +63,9 @@ function App() {
         path="/builder/content"
         element={
           <RequireTinasuzeAuth>
-            <DashboardLayout>
+            <TinasuzeLayout>
               <ContentOverviewPage />
-            </DashboardLayout>
+            </TinasuzeLayout>
           </RequireTinasuzeAuth>
         }
       />
@@ -60,9 +73,9 @@ function App() {
         path="/builder/editor/*"
         element={
           <RequireTinasuzeAuth>
-            <DashboardLayout>
+            <TinasuzeLayout>
               <LinkEditorPage />
-            </DashboardLayout>
+            </TinasuzeLayout>
           </RequireTinasuzeAuth>
         }
       />

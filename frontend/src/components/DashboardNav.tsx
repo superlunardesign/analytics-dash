@@ -1,9 +1,10 @@
 import { LogOut } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../api";
+import { TINASUZE_ACCENT, TINASUZE_TEXT, TINASUZE_TEXT_MUTED } from "../tinasuzeTheme";
 
 const TINASUZE_LINKS = [
-  { to: "/builder/analytics", label: "Page Analytics" },
+  { to: "/builder/analytics", label: "Analytics" },
   { to: "/builder/content", label: "Content Overview" },
   { to: "/builder/editor", label: "Link Editor" },
 ];
@@ -14,7 +15,10 @@ export function DashboardNav() {
   const isTinasuze = location.pathname.startsWith("/builder");
 
   return (
-    <div style={{ borderBottom: "1px solid var(--border)" }}>
+    <div style={{ borderBottom: isTinasuze ? "none" : "1px solid var(--border)" }}>
+      {/* Brand switcher -- small and out of the way; not part of either
+          brand's own design, just the meta-level control to jump between
+          them. */}
       <div
         style={{
           display: "flex",
@@ -29,7 +33,7 @@ export function DashboardNav() {
           style={{
             display: "flex",
             gap: 2,
-            background: "var(--gridline)",
+            background: isTinasuze ? "rgba(21,17,13,0.06)" : "var(--gridline)",
             borderRadius: 8,
             padding: 2,
           }}
@@ -38,7 +42,7 @@ export function DashboardNav() {
             onClick={() => navigate("/")}
             style={{
               background: !isTinasuze ? "var(--surface-1)" : "transparent",
-              color: !isTinasuze ? "var(--text-primary)" : "var(--text-secondary)",
+              color: !isTinasuze ? "var(--text-primary)" : TINASUZE_TEXT_MUTED,
               border: "none",
               borderRadius: 6,
               padding: "6px 14px",
@@ -52,8 +56,8 @@ export function DashboardNav() {
           <button
             onClick={() => navigate("/builder/analytics")}
             style={{
-              background: isTinasuze ? "var(--surface-1)" : "transparent",
-              color: isTinasuze ? "var(--text-primary)" : "var(--text-secondary)",
+              background: isTinasuze ? "#ffffff" : "transparent",
+              color: isTinasuze ? TINASUZE_TEXT : "var(--text-secondary)",
               border: "none",
               borderRadius: 6,
               padding: "6px 14px",
@@ -67,58 +71,54 @@ export function DashboardNav() {
         </div>
       </div>
 
-      {isTinasuze && (
+      {isTinasuze ? (
         <div
           style={{
             display: "flex",
-            gap: 4,
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "10px 24px",
-            maxWidth: 1200,
+            padding: "18px 24px 10px",
+            maxWidth: 1400,
             margin: "0 auto",
           }}
         >
-          <div style={{ display: "flex", gap: 4 }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: TINASUZE_TEXT, letterSpacing: -0.3 }}>tinasuze dashboard</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
             {TINASUZE_LINKS.map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}
                 style={({ isActive }) => ({
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
-                  background: isActive ? "var(--gridline)" : "transparent",
-                  borderRadius: 6,
-                  padding: "6px 12px",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: isActive ? TINASUZE_ACCENT : TINASUZE_TEXT,
                   textDecoration: "none",
                 })}
               >
                 {link.label}
               </NavLink>
             ))}
+            <button
+              onClick={() => logout().finally(() => navigate("/builder/login"))}
+              title="Log out"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                background: "transparent",
+                color: TINASUZE_TEXT_MUTED,
+                border: "none",
+                padding: 0,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <LogOut size={14} />
+            </button>
           </div>
-          <button
-            onClick={() => logout().finally(() => navigate("/builder/login"))}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "transparent",
-              color: "var(--text-secondary)",
-              border: "none",
-              borderRadius: 6,
-              padding: "6px 10px",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            <LogOut size={14} />
-            Log out
-          </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

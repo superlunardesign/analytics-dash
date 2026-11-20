@@ -3,21 +3,22 @@ import { Lock } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { login } from "../api";
+import { TINASUZE_ACCENT, TINASUZE_BORDER, TINASUZE_GRADIENT, TINASUZE_TEXT, TINASUZE_TEXT_MUTED } from "../tinasuzeTheme";
 
 const inputStyle: React.CSSProperties = {
   display: "block",
   width: "100%",
   marginTop: 6,
-  background: "var(--page-plane)",
-  color: "var(--text-primary)",
-  border: "1px solid var(--border)",
+  background: "#fff",
+  color: TINASUZE_TEXT,
+  border: `1px solid ${TINASUZE_BORDER}`,
   borderRadius: 8,
   padding: "10px 12px",
   fontSize: 14,
   boxSizing: "border-box",
 };
 
-const labelStyle: React.CSSProperties = { fontSize: 13, color: "var(--text-secondary)", display: "block", marginBottom: 14 };
+const labelStyle: React.CSSProperties = { fontSize: 13, color: TINASUZE_TEXT_MUTED, display: "block", marginBottom: 14 };
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -51,7 +52,7 @@ export function LoginPage() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "var(--surface-1)",
+        background: TINASUZE_GRADIENT,
         padding: 24,
       }}
     >
@@ -63,10 +64,10 @@ export function LoginPage() {
         style={{
           width: "100%",
           maxWidth: 340,
-          background: "var(--page-plane)",
-          border: "1px solid var(--border)",
+          background: "#fff",
           borderRadius: 16,
           padding: 28,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.12)",
         }}
       >
         <div
@@ -74,17 +75,17 @@ export function LoginPage() {
             width: 44,
             height: 44,
             borderRadius: 12,
-            background: "var(--gridline)",
+            background: "#ffd9ec",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             marginBottom: 18,
           }}
         >
-          <Lock size={20} color="var(--text-primary)" />
+          <Lock size={20} color={TINASUZE_ACCENT} />
         </div>
-        <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px" }}>Tinasuze dashboard</h1>
-        <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: "0 0 20px" }}>Sign in to manage the creator page.</p>
+        <h1 style={{ fontSize: 18, fontWeight: 800, color: TINASUZE_TEXT, margin: "0 0 4px" }}>tinasuze dashboard</h1>
+        <p style={{ fontSize: 13, color: TINASUZE_TEXT_MUTED, margin: "0 0 20px" }}>Sign in to manage the creator page.</p>
 
         <label style={labelStyle}>
           Username
@@ -105,7 +106,7 @@ export function LoginPage() {
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            style={{ fontSize: 12.5, color: "var(--series-red, #d64545)", margin: "-4px 0 14px" }}
+            style={{ fontSize: 12.5, color: "#d6294f", margin: "-4px 0 14px" }}
           >
             {error}
           </motion.p>
@@ -116,8 +117,8 @@ export function LoginPage() {
           disabled={submitting || !username || !password}
           style={{
             width: "100%",
-            background: "var(--text-primary)",
-            color: "var(--surface-1)",
+            background: TINASUZE_ACCENT,
+            color: "#fff",
             border: "none",
             borderRadius: 8,
             padding: "10px 0",
