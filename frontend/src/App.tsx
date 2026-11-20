@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { DashboardNav } from "./components/DashboardNav";
 import { BuilderAnalyticsPage } from "./pages/BuilderAnalyticsPage";
 import { ContentOverviewPage } from "./pages/ContentOverviewPage";
@@ -54,6 +54,12 @@ function App() {
           </DashboardLayout>
         }
       />
+
+      {/* Anything else (e.g. a hosting rewrite rule misconfigured as a
+          redirect to /index.html, which otherwise matches nothing here
+          and renders a blank page) lands on the dashboard home instead
+          of a blank screen with no explanation. */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
