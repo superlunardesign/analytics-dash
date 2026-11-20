@@ -227,21 +227,22 @@ export function ElementRenderer({ element, interactive, onLinkClick, productsByI
               const asins = resolvedProducts.map((p) => p.amazon_asin).filter((a): a is string => !!a);
               if (asins.length === 0) return null;
               const cartUrl = buildAmazonCartUrl(asins, amazonAssociateTag);
+              const label = (config.cart_button_label as string) || "Add All to Cart";
               return (
                 <Link href={cartUrl} interactive={interactive} onLinkClick={(url) => onLinkClick?.(url)}>
                   <div
                     style={{
                       marginTop: 10,
-                      background: "#111",
+                      background: (config.cart_button_color as string) || "#111111",
                       borderRadius: 10,
                       padding: "10px 14px",
                       textAlign: "center",
-                      color: "#fff",
+                      color: (config.cart_button_text_color as string) || "#ffffff",
                       fontWeight: 600,
                       fontSize: 13,
                     }}
                   >
-                    Add All to Cart ({asins.length})
+                    {label} ({asins.length})
                   </div>
                 </Link>
               );

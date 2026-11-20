@@ -165,6 +165,29 @@ function CarouselEditor({
             : "None of these products look like Amazon links yet -- add one to enable this button."}
           {" Set your Associates tag in Page Settings."}
         </p>
+        {Boolean(config.show_add_all_to_cart) && (
+          <div style={{ marginTop: 10 }}>
+            <label style={labelStyle}>
+              Button text
+              <input
+                style={inputStyle}
+                value={(config.cart_button_label as string) ?? ""}
+                onChange={(e) => onChange({ ...config, cart_button_label: e.target.value })}
+                placeholder="Add All to Cart"
+              />
+            </label>
+            <ColorField
+              label="Background"
+              value={(config.cart_button_color as string) ?? "#111111"}
+              onChange={(v) => onChange({ ...config, cart_button_color: v })}
+            />
+            <ColorField
+              label="Text"
+              value={(config.cart_button_text_color as string) ?? "#ffffff"}
+              onChange={(v) => onChange({ ...config, cart_button_text_color: v })}
+            />
+          </div>
+        )}
       </div>
 
       <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>Products ({selected.length})</div>

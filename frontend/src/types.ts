@@ -258,6 +258,9 @@ export interface CarouselConfig {
   // has an Amazon Associates tag set and at least one product here has
   // an amazon_asin -- see ElementRenderer.tsx.
   show_add_all_to_cart?: boolean;
+  cart_button_label?: string;
+  cart_button_color?: string;
+  cart_button_text_color?: string;
 }
 
 export type TextAlign = "left" | "center" | "right";
