@@ -373,10 +373,24 @@ function ImageCardRowEditor({ config, onChange }: { config: ElementConfig; onCha
         <div key={i} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10, marginBottom: 10 }}>
           {columns === 2 && <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 8 }}>Card {i + 1}</div>}
           <ImageUploadField label="Image" value={card.image_url ?? ""} onChange={(url) => updateCard(i, { image_url: url })} />
-          <label style={labelStyle}>
-            Badge text (optional, e.g. "POPULAR")
-            <input style={inputStyle} value={card.badge_text ?? ""} onChange={(e) => updateCard(i, { badge_text: e.target.value })} />
-          </label>
+          <div style={{ marginBottom: card.badge_enabled ? 10 : 14 }}>
+            <ToggleSwitch
+              checked={Boolean(card.badge_enabled)}
+              onChange={(checked) => updateCard(i, { badge_enabled: checked })}
+              label="Badge"
+            />
+          </div>
+          {card.badge_enabled && (
+            <label style={labelStyle}>
+              Badge text
+              <input
+                style={inputStyle}
+                value={card.badge_text ?? ""}
+                onChange={(e) => updateCard(i, { badge_text: e.target.value })}
+                placeholder="e.g. POPULAR"
+              />
+            </label>
+          )}
           <label style={labelStyle}>
             Caption
             <input style={inputStyle} value={card.caption ?? ""} onChange={(e) => updateCard(i, { caption: e.target.value })} />

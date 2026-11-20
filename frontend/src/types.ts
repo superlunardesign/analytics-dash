@@ -238,6 +238,10 @@ export interface CardLinkConfig {
 
 export interface ImageCard {
   image_url?: string;
+  // Explicit on/off, independent of badge_text -- so turning the badge
+  // off doesn't lose whatever text was typed, and typing text doesn't
+  // implicitly turn it on.
+  badge_enabled?: boolean;
   badge_text?: string;
   caption?: string;
   url?: string;

@@ -305,7 +305,7 @@ export function ElementRenderer({ element, interactive, onLinkClick, productsByI
               <div>
                 <div style={{ position: "relative", aspectRatio: "4 / 5", borderRadius: 10, background: "#eee", overflow: "hidden" }}>
                   {card.image_url && <img src={card.image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-                  {card.badge_text && (
+                  {card.badge_enabled && card.badge_text && (
                     <div
                       style={{
                         position: "absolute",
