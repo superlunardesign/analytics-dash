@@ -2,9 +2,19 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.db.models import ElementType
+
+
+def _validate_slug(v: str | None) -> str | None:
+    # An empty slug produces a "/p/" live-page link that matches no
+    # frontend route and silently bounces visitors to the dashboard --
+    # reject it here too, not just in the editor UI, since this is the
+    # one place that can't be bypassed.
+    if v is not None and not v.strip():
+        raise ValueError("slug can't be empty")
+    return v
 
 
 class UploadOut(BaseModel):
@@ -50,6 +60,8 @@ class CreatorPageIn(BaseModel):
     theme: dict = {}
     social_links: dict = {}
 
+    _validate_slug = field_validator("slug")(_validate_slug)
+
 
 class CreatorPageUpdateIn(BaseModel):
     # All optional -- PATCH-style partial update.
@@ -60,6 +72,8 @@ class CreatorPageUpdateIn(BaseModel):
     is_published: bool | None = None
     theme: dict | None = None
     social_links: dict | None = None
+
+    _validate_slug = field_validator("slug")(_validate_slug)
 
 
 class CreatorPageOut(BaseModel):

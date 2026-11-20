@@ -47,9 +47,25 @@ export function PageSettingsEditor({ page, onChange, onDelete }: PageSettingsEdi
         <input
           style={inputStyle}
           value={page.slug}
-          onChange={(e) => onChange({ slug: e.target.value.trim().toLowerCase().replace(/\s+/g, "-") })}
+          onChange={(e) => {
+            // An empty slug breaks the live page link entirely (it becomes
+            // "/p/" with nothing after the slash, which doesn't match any
+            // route and silently bounces to the dashboard) -- never commit
+            // one, even mid-edit while someone's retyping it.
+            const slug = e.target.value
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/(^-|-$)/g, "");
+            if (slug) onChange({ slug });
+          }}
         />
       </label>
+      {!page.slug && (
+        <p style={{ fontSize: 11, color: "var(--series-red, #d64545)", marginTop: -6, marginBottom: 10 }}>
+          This page has no URL slug yet, so its live link won't work -- type one above.
+        </p>
+      )}
       <ImageUploadField label="Avatar" value={page.avatar_url ?? ""} onChange={(url) => onChange({ avatar_url: url })} />
 
       <div style={{ marginTop: 6, marginBottom: 6, fontSize: 12, color: "var(--text-secondary)" }}>Background & accent</div>

@@ -250,7 +250,7 @@ export function LinkEditorPage() {
         >
           <Plus size={14} /> New page
         </button>
-        {pageDetail?.is_published && (
+        {pageDetail?.is_published && pageDetail.slug && (
           <a
             href={`/p/${pageDetail.slug}`}
             target="_blank"
