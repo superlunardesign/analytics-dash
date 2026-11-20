@@ -60,6 +60,9 @@ class CreatorPageIn(BaseModel):
     theme: dict = {}
     social_links: dict = {}
     amazon_associate_tag: str | None = None
+    og_title: str | None = None
+    og_description: str | None = None
+    og_image_url: str | None = None
 
     _validate_slug = field_validator("slug")(_validate_slug)
 
@@ -74,6 +77,9 @@ class CreatorPageUpdateIn(BaseModel):
     theme: dict | None = None
     social_links: dict | None = None
     amazon_associate_tag: str | None = None
+    og_title: str | None = None
+    og_description: str | None = None
+    og_image_url: str | None = None
 
     _validate_slug = field_validator("slug")(_validate_slug)
 
@@ -90,6 +96,9 @@ class CreatorPageOut(BaseModel):
     theme: dict
     social_links: dict
     amazon_associate_tag: str | None = None
+    og_title: str | None = None
+    og_description: str | None = None
+    og_image_url: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -154,6 +163,9 @@ class PublicPageOut(BaseModel):
     theme: dict
     social_links: dict
     amazon_associate_tag: str | None = None
+    og_title: str | None = None
+    og_description: str | None = None
+    og_image_url: str | None = None
     elements: list[PageElementOut]
 
 

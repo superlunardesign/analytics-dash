@@ -85,6 +85,39 @@ export function PageSettingsEditor({ page, onChange, onDelete }: PageSettingsEdi
         onChange={(v) => onChange({ theme: { ...theme, accent_color: v } })}
       />
 
+      <div style={{ marginTop: 14, marginBottom: 6, fontSize: 12, color: "var(--text-secondary)" }}>Social sharing preview</div>
+      <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -2, marginBottom: 10 }}>
+        What shows up when this page's link is pasted into iMessage, Slack, Instagram, etc. Leave any of these blank to fall back to
+        the title/avatar above.
+      </p>
+      <label style={labelStyle}>
+        Preview title
+        <input
+          style={inputStyle}
+          value={page.og_title ?? ""}
+          onChange={(e) => onChange({ og_title: e.target.value || null })}
+          placeholder={page.title || "Falls back to page title"}
+        />
+      </label>
+      <label style={labelStyle}>
+        Preview description
+        <textarea
+          style={{ ...inputStyle, resize: "vertical" }}
+          rows={2}
+          value={page.og_description ?? ""}
+          onChange={(e) => onChange({ og_description: e.target.value || null })}
+          placeholder="A short line about your page"
+        />
+      </label>
+      <ImageUploadField
+        label="Preview image"
+        value={page.og_image_url ?? ""}
+        onChange={(url) => onChange({ og_image_url: url })}
+      />
+      <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: -6, marginBottom: 10 }}>
+        Works best as a wide image (1200×630) -- different shape than your round avatar.
+      </p>
+
       <div style={{ marginTop: 14, marginBottom: 6, fontSize: 12, color: "var(--text-secondary)" }}>Amazon</div>
       <label style={labelStyle}>
         Associates tracking tag

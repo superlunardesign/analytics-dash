@@ -85,6 +85,9 @@ def get_public_page(slug: str, request: Request, db: Session = Depends(get_db)) 
         theme=page.theme,
         social_links=page.social_links,
         amazon_associate_tag=page.amazon_associate_tag,
+        og_title=page.og_title,
+        og_description=page.og_description,
+        og_image_url=page.og_image_url,
         elements=elements,
     )
 

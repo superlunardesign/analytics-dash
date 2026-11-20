@@ -205,6 +205,9 @@ export interface CreatorPageInput {
   theme?: Record<string, unknown>;
   social_links?: Record<string, unknown>;
   amazon_associate_tag?: string | null;
+  og_title?: string | null;
+  og_description?: string | null;
+  og_image_url?: string | null;
 }
 
 export function createPage(payload: CreatorPageInput): Promise<CreatorPage> {

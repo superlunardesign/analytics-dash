@@ -395,6 +395,18 @@ class CreatorPage(Base):
     # to Cart" bulk link (see Product.amazon_asin below).
     amazon_associate_tag: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Social share preview (the card shown when this page's link is pasted
+    # into iMessage/Slack/Instagram/etc) -- deliberately separate from
+    # title/avatar_url above, since a creator often wants a wider banner
+    # image and a punchier title for a share card than what actually shows
+    # at the top of the page itself. Each falls back to title/avatar_url
+    # when unset -- see frontend/scripts/inject-social-meta.mjs, which
+    # bakes these into the static HTML at build time since social-media
+    # link unfurlers don't run this SPA's JavaScript.
+    og_title: Mapped[str | None] = mapped_column(String, nullable=True)
+    og_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    og_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow

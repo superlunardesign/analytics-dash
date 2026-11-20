@@ -329,6 +329,13 @@ export interface CreatorPage {
   theme: PageTheme;
   social_links: SocialLinksMap;
   amazon_associate_tag: string | null;
+  // Social share preview -- shown when this page's link is pasted into
+  // iMessage/Slack/Instagram/etc, each falling back to title/avatar_url
+  // when unset. Baked into the static HTML at deploy time, not read live
+  // -- see frontend/scripts/inject-social-meta.mjs.
+  og_title: string | null;
+  og_description: string | null;
+  og_image_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -366,6 +373,9 @@ export interface PublicPage {
   theme: PageTheme;
   social_links: SocialLinksMap;
   amazon_associate_tag: string | null;
+  og_title: string | null;
+  og_description: string | null;
+  og_image_url: string | null;
   elements: PageElement[];
 }
 
