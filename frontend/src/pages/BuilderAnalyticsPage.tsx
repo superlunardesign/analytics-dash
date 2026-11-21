@@ -211,19 +211,35 @@ export function BuilderAnalyticsPage() {
                         borderBottom: i < topLinks.length - 1 ? `1px solid ${TINASUZE_ACCENT_SOFT}` : "none",
                       }}
                     >
-                      <span
-                        style={{
-                          color: TINASUZE_ACCENT,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          display: "block",
-                          minWidth: 0,
-                        }}
-                        title={l.link_url}
-                      >
-                        {l.link_url}
-                      </span>
+                      <div style={{ minWidth: 0, overflow: "hidden" }}>
+                        {l.label && (
+                          <span
+                            style={{
+                              display: "block",
+                              fontSize: 11,
+                              color: TINASUZE_TEXT_MUTED,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {l.label}
+                          </span>
+                        )}
+                        <span
+                          style={{
+                            color: TINASUZE_ACCENT,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            display: "block",
+                            minWidth: 0,
+                          }}
+                          title={l.link_url}
+                        >
+                          {l.link_url}
+                        </span>
+                      </div>
                       <span style={{ color: TINASUZE_ACCENT, fontWeight: 700, flexShrink: 0 }}>{formatNumber(l.clicks)}</span>
                     </div>
                   ))}

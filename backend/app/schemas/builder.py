@@ -185,6 +185,11 @@ class LogClickIn(BaseModel):
 class TopLinkClickOut(BaseModel):
     link_url: str
     clicks: int
+    # The button/card-link's own label/title (or an image card's caption),
+    # looked up from whichever current page element links to this URL --
+    # None if no element on the page uses this URL anymore (e.g. it was
+    # edited or deleted since the click happened).
+    label: str | None = None
 
 
 class PageVisitPointOut(BaseModel):

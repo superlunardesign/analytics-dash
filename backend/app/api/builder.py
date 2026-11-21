@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.auth import current_tinasuze_user
-from app.db.models import CreatorPage, LinkClick, PageElement, PageVisit, Product
+from app.db.models import CreatorPage, ElementType, LinkClick, PageElement, PageVisit, Product
 from app.db.session import get_db
 from app.integrations import link_preview
 from app.integrations.amazon import extract_amazon_asin
@@ -256,6 +256,35 @@ def delete_product(product_id: str, db: Session = Depends(get_db)) -> None:
 # to aggregate across every page. --
 
 
+def _link_label_map(db: Session, page_id: str | None) -> dict[str, str]:
+    """Maps a link's URL to whatever label/title/caption the creator gave
+    it in the editor, by reading every page element that can carry a URL.
+    Best-effort only: a URL that's since been edited/removed from every
+    element, or that came from a social-links icon (no per-link label to
+    read), is simply left unlabeled."""
+    labels: dict[str, str] = {}
+    element_q = db.query(PageElement.element_type, PageElement.config)
+    if page_id:
+        element_q = element_q.filter(PageElement.page_id == page_id)
+    for element_type, config in element_q.all():
+        config = config or {}
+        if element_type == ElementType.IMAGE_CARD_ROW:
+            for card in config.get("cards") or []:
+                url, label = card.get("url"), card.get("caption")
+                if url and label:
+                    labels[url] = label
+            continue
+        if element_type == ElementType.BUTTON:
+            url, label = config.get("url"), config.get("label")
+        elif element_type == ElementType.CARD_LINK:
+            url, label = config.get("url"), config.get("title")
+        else:
+            continue
+        if url and label:
+            labels[url] = label
+    return labels
+
+
 @router.get("/analytics/top-links", response_model=list[TopLinkClickOut])
 def top_link_clicks(
     start: datetime,
@@ -268,7 +297,8 @@ def top_link_clicks(
     if page_id:
         q = q.filter(LinkClick.page_id == page_id)
     counts = Counter(url for (url,) in q.all())
-    return [TopLinkClickOut(link_url=url, clicks=n) for url, n in counts.most_common(limit)]
+    labels = _link_label_map(db, page_id)
+    return [TopLinkClickOut(link_url=url, clicks=n, label=labels.get(url)) for url, n in counts.most_common(limit)]
 
 
 # Timestamps are stored in UTC, but the chart buckets by calendar day --

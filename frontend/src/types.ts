@@ -407,6 +407,7 @@ export interface PublicPage {
 export interface TopLinkClick {
   link_url: string;
   clicks: number;
+  label: string | null;
 }
 
 export interface PageVisitPoint {
