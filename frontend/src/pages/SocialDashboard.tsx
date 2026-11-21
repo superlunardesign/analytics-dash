@@ -71,7 +71,7 @@ export function SocialDashboard() {
   const refreshStatus = useCallback(async () => {
     setStatusLoading(true);
     try {
-      setStatus(await getInstagramStatus());
+      setStatus(await getInstagramStatus("superlunar"));
     } finally {
       setStatusLoading(false);
     }
@@ -80,7 +80,7 @@ export function SocialDashboard() {
   const refreshTiktokStatus = useCallback(async () => {
     setTiktokStatusLoading(true);
     try {
-      setTiktokStatus(await getTikTokStatus());
+      setTiktokStatus(await getTikTokStatus("superlunar"));
     } finally {
       setTiktokStatusLoading(false);
     }
@@ -95,8 +95,9 @@ export function SocialDashboard() {
       // filters happened to be left on.
       const res = await listPosts(
         postsTab === "saved"
-          ? { sort_by: sortBy, order, is_saved: true, limit: 200 }
+          ? { brand: "superlunar", sort_by: sortBy, order, is_saved: true, limit: 200 }
           : {
+              brand: "superlunar",
               sort_by: sortBy,
               order,
               media_product_type: mediaProductType || undefined,
@@ -149,7 +150,7 @@ export function SocialDashboard() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const run = await triggerInstagramSync();
+      const run = await triggerInstagramSync("superlunar");
       setLastSync(run);
       await refreshPosts();
     } catch (err) {
@@ -162,7 +163,7 @@ export function SocialDashboard() {
   const handleTiktokSync = async () => {
     setTiktokSyncing(true);
     try {
-      const run = await triggerTikTokSync();
+      const run = await triggerTikTokSync("superlunar");
       setTiktokLastSync(run);
       await refreshPosts();
     } catch (err) {
@@ -223,7 +224,7 @@ export function SocialDashboard() {
         loading={statusLoading}
         syncing={syncing}
         lastSync={lastSync}
-        onConnect={() => (window.location.href = instagramOAuthStartUrl())}
+        onConnect={() => (window.location.href = instagramOAuthStartUrl("superlunar"))}
         onSync={handleSync}
       />
 
@@ -233,7 +234,7 @@ export function SocialDashboard() {
         loading={tiktokStatusLoading}
         syncing={tiktokSyncing}
         lastSync={tiktokLastSync}
-        onConnect={() => (window.location.href = tiktokOAuthStartUrl())}
+        onConnect={() => (window.location.href = tiktokOAuthStartUrl("superlunar"))}
         onSync={handleTiktokSync}
       />
 

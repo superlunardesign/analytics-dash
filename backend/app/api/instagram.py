@@ -3,13 +3,13 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.security import encrypt_token
-from app.db.models import Account, Platform
+from app.db.models import Account, Brand, Platform
 from app.db.session import get_db
 from app.integrations.instagram import oauth as ig_oauth
 from app.integrations.instagram.client import InstagramClient
@@ -19,19 +19,23 @@ from app.services.instagram_sync import SyncAlreadyRunningError, sync_instagram_
 router = APIRouter(prefix="/api/instagram", tags=["instagram"])
 
 STATE_COOKIE_NAME = "ig_oauth_state"
+BRAND_COOKIE_NAME = "ig_oauth_brand"
+
+# Where each brand lands after connecting -- Superlunar's own dashboard
+# home vs Tinasuze's Content Overview tab, so connecting Tinasuze's
+# account doesn't bounce her onto the Superlunar side.
+_POST_CONNECT_PATH = {
+    Brand.SUPERLUNAR: "/",
+    Brand.TINASUZE: "/builder/content",
+}
 
 
 @router.get("/oauth/start")
-def oauth_start(response: Response) -> RedirectResponse:
+def oauth_start(brand: Brand = Query(Brand.SUPERLUNAR)) -> RedirectResponse:
     state = secrets.token_urlsafe(24)
     redirect = RedirectResponse(ig_oauth.build_authorize_url(state))
-    redirect.set_cookie(
-        STATE_COOKIE_NAME,
-        state,
-        max_age=600,
-        httponly=True,
-        samesite="lax",
-    )
+    redirect.set_cookie(STATE_COOKIE_NAME, state, max_age=600, httponly=True, samesite="lax")
+    redirect.set_cookie(BRAND_COOKIE_NAME, brand.value, max_age=600, httponly=True, samesite="lax")
     return redirect
 
 
@@ -41,12 +45,18 @@ def oauth_callback(
     state: str | None = None,
     error: str | None = None,
     ig_oauth_state: str | None = Cookie(default=None),
+    ig_oauth_brand: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     settings = get_settings()
+    # Defaults to Superlunar if the cookie's missing/expired (e.g. the
+    # flow took over 10 minutes) -- safe fallback, matches this
+    # integration's original (pre-brand) behavior rather than guessing.
+    brand = Brand(ig_oauth_brand) if ig_oauth_brand in (b.value for b in Brand) else Brand.SUPERLUNAR
+    post_connect_path = _POST_CONNECT_PATH[brand]
 
     if error:
-        return RedirectResponse(f"{settings.frontend_base_url}/?instagram_error={error}")
+        return RedirectResponse(f"{settings.frontend_base_url}{post_connect_path}?instagram_error={error}")
     if not code or not state or not ig_oauth_state or state != ig_oauth_state:
         raise HTTPException(status_code=400, detail="Invalid OAuth state")
 
@@ -65,6 +75,7 @@ def oauth_callback(
     if account is None:
         account = Account(platform=Platform.INSTAGRAM, external_account_id=external_account_id)
 
+    account.brand = brand
     account.username = profile.get("username")
     account.display_name = profile.get("name")
     account.access_token_encrypted = encrypt_token(long_lived.access_token)
@@ -75,14 +86,15 @@ def oauth_callback(
     db.add(account)
     db.commit()
 
-    redirect = RedirectResponse(f"{settings.frontend_base_url}/?connected=instagram")
+    redirect = RedirectResponse(f"{settings.frontend_base_url}{post_connect_path}?connected=instagram")
     redirect.delete_cookie(STATE_COOKIE_NAME)
+    redirect.delete_cookie(BRAND_COOKIE_NAME)
     return redirect
 
 
 @router.get("/status", response_model=AccountStatusOut)
-def status(db: Session = Depends(get_db)) -> AccountStatusOut:
-    account = db.query(Account).filter(Account.platform == Platform.INSTAGRAM).one_or_none()
+def status(brand: Brand = Query(Brand.SUPERLUNAR), db: Session = Depends(get_db)) -> AccountStatusOut:
+    account = db.query(Account).filter(Account.platform == Platform.INSTAGRAM, Account.brand == brand).one_or_none()
     if account is None:
         return AccountStatusOut(connected=False)
     return AccountStatusOut(
@@ -95,8 +107,8 @@ def status(db: Session = Depends(get_db)) -> AccountStatusOut:
 
 
 @router.post("/sync", response_model=SyncRunOut)
-def trigger_sync(db: Session = Depends(get_db)) -> SyncRunOut:
-    account = db.query(Account).filter(Account.platform == Platform.INSTAGRAM).one_or_none()
+def trigger_sync(brand: Brand = Query(Brand.SUPERLUNAR), db: Session = Depends(get_db)) -> SyncRunOut:
+    account = db.query(Account).filter(Account.platform == Platform.INSTAGRAM, Account.brand == brand).one_or_none()
     if account is None:
         raise HTTPException(status_code=400, detail="No Instagram account connected yet")
 

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, aliased
 
-from app.db.models import Platform, Post, PostMetricSnapshot, PostVideoAnalysis
+from app.db.models import Account, Brand, Platform, Post, PostMetricSnapshot, PostVideoAnalysis
 from app.db.session import get_db
 from app.integrations.video_analyzer import client as video_analyzer
 from app.schemas.post import (
@@ -88,6 +88,12 @@ def _latest_snapshot_subquery(db: Session):
 @router.get("", response_model=PostListResponse)
 def list_posts(
     db: Session = Depends(get_db),
+    # Which brand's connected accounts to show posts from -- Superlunar's
+    # dashboard and Tinasuze's Content Overview each pass their own, so
+    # neither ever sees the other's synced content. None (omitted) means
+    # "every brand," which no caller in this app actually does -- both
+    # always pass theirs explicitly.
+    brand: Brand | None = None,
     platform: Platform | None = None,
     media_type: str | None = None,
     media_product_type: str | None = None,
@@ -115,6 +121,9 @@ def list_posts(
         .filter(Post.media_product_type != "STORY")
     )
 
+    if brand:
+        brand_account_ids = db.query(Account.id).filter(Account.brand == brand)
+        query = query.filter(Post.account_id.in_(brand_account_ids))
     if platform:
         query = query.filter(Post.platform == platform)
     if media_type:

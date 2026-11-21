@@ -77,19 +77,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return resp.json() as Promise<T>;
 }
 
-export function getInstagramStatus(): Promise<AccountStatus> {
-  return request("/api/instagram/status");
+export type Brand = "superlunar" | "tinasuze";
+
+export function getInstagramStatus(brand: Brand = "superlunar"): Promise<AccountStatus> {
+  return request(`/api/instagram/status?brand=${brand}`);
 }
 
-export function triggerInstagramSync(): Promise<SyncRun> {
-  return request("/api/instagram/sync", { method: "POST" });
+export function triggerInstagramSync(brand: Brand = "superlunar"): Promise<SyncRun> {
+  return request(`/api/instagram/sync?brand=${brand}`, { method: "POST" });
 }
 
-export function instagramOAuthStartUrl(): string {
-  return `${API_BASE_URL}/api/instagram/oauth/start`;
+export function instagramOAuthStartUrl(brand: Brand = "superlunar"): string {
+  return `${API_BASE_URL}/api/instagram/oauth/start?brand=${brand}`;
 }
 
 export interface ListPostsParams {
+  brand?: Brand;
   platform?: string;
   media_type?: string;
   media_product_type?: string;
@@ -149,16 +152,16 @@ export function getVideoAnalysis(id: string): Promise<VideoAnalysis> {
   return request(`/api/posts/${id}/video-analysis`);
 }
 
-export function getTikTokStatus(): Promise<AccountStatus> {
-  return request("/api/tiktok/status");
+export function getTikTokStatus(brand: Brand = "superlunar"): Promise<AccountStatus> {
+  return request(`/api/tiktok/status?brand=${brand}`);
 }
 
-export function triggerTikTokSync(): Promise<SyncRun> {
-  return request("/api/tiktok/sync", { method: "POST" });
+export function triggerTikTokSync(brand: Brand = "superlunar"): Promise<SyncRun> {
+  return request(`/api/tiktok/sync?brand=${brand}`, { method: "POST" });
 }
 
-export function tiktokOAuthStartUrl(): string {
-  return `${API_BASE_URL}/api/tiktok/oauth/start`;
+export function tiktokOAuthStartUrl(brand: Brand = "superlunar"): string {
+  return `${API_BASE_URL}/api/tiktok/oauth/start?brand=${brand}`;
 }
 
 export function getWixStatus(): Promise<WixStatus> {

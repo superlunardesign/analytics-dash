@@ -19,6 +19,17 @@ class Platform(str, enum.Enum):
     TIKTOK = "tiktok"
 
 
+class Brand(str, enum.Enum):
+    """Which of the two brands this app serves a connected account
+    belongs to -- Superlunar (the agency's own dashboard) and Tinasuze
+    (the creator page builder). Each brand gets its own independent
+    Instagram/TikTok connection and synced posts, never mixed together,
+    even though they share this one app/database."""
+
+    SUPERLUNAR = "superlunar"
+    TINASUZE = "tinasuze"
+
+
 class SyncStatus(str, enum.Enum):
     RUNNING = "running"
     SUCCESS = "success"
@@ -33,6 +44,10 @@ class Account(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     platform: Mapped[Platform] = mapped_column(Enum(Platform), nullable=False)
+    # Defaults to SUPERLUNAR (server_default too, so every account that
+    # existed before this column did -- the agency's own, real, currently-
+    # working connections -- keeps behaving exactly as it already did.
+    brand: Mapped[Brand] = mapped_column(Enum(Brand), nullable=False, default=Brand.SUPERLUNAR, server_default="SUPERLUNAR")
     external_account_id: Mapped[str] = mapped_column(String, nullable=False)
     username: Mapped[str | None] = mapped_column(String, nullable=True)
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
