@@ -229,11 +229,18 @@ export interface ButtonConfig {
   gradient_to?: string;
 }
 
+export type CardLinkImageSize = "small" | "medium" | "tall";
+
 export interface CardLinkConfig {
   title?: string;
   description?: string;
   url?: string;
   image_url?: string;
+  // "small" (default): current compact thumbnail next to the text.
+  // "medium": a bigger thumbnail, still side by side with the text.
+  // "tall": a full-width banner image on top, text below -- the image
+  // becomes the dominant part of the card.
+  image_size?: CardLinkImageSize;
 }
 
 export interface ImageCard {

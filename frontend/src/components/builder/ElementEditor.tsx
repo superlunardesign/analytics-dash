@@ -1,6 +1,6 @@
 import { AlignCenter, AlignLeft, AlignRight, ArrowLeft, ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
-import type { CarouselProductRef, ElementConfig, ImageCard, PageElement, Product, SocialLinksMap, TextAlign } from "../../types";
+import type { CardLinkImageSize, CarouselProductRef, ElementConfig, ImageCard, PageElement, Product, SocialLinksMap, TextAlign } from "../../types";
 import { ColorField } from "./ColorField";
 import { ImageUploadField } from "./ImageUploadField";
 import { ProductPicker } from "./ProductPicker";
@@ -97,7 +97,14 @@ function ButtonEditor({ config, onChange }: { config: ElementConfig; onChange: (
   );
 }
 
+const IMAGE_SIZE_OPTIONS: { value: CardLinkImageSize; label: string }[] = [
+  { value: "small", label: "Small" },
+  { value: "medium", label: "Medium" },
+  { value: "tall", label: "Tall" },
+];
+
 function CardLinkEditor({ config, onChange }: { config: ElementConfig; onChange: (c: ElementConfig) => void }) {
+  const imageSize = (config.image_size as CardLinkImageSize) || "small";
   return (
     <>
       <label style={labelStyle}>
@@ -113,6 +120,30 @@ function CardLinkEditor({ config, onChange }: { config: ElementConfig; onChange:
         <input style={inputStyle} value={(config.url as string) ?? ""} onChange={(e) => onChange({ ...config, url: e.target.value })} />
       </label>
       <ImageUploadField label="Image (optional)" value={(config.image_url as string) ?? ""} onChange={(url) => onChange({ ...config, image_url: url })} />
+      <div style={{ marginBottom: 10 }}>
+        <span style={{ fontSize: 12, color: "var(--text-secondary)", display: "block", marginBottom: 4 }}>Image size</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {IMAGE_SIZE_OPTIONS.map(({ value, label }) => (
+            <button
+              key={value}
+              onClick={() => onChange({ ...config, image_size: value })}
+              style={{
+                flex: 1,
+                padding: "6px 0",
+                background: imageSize === value ? "var(--series-blue)" : "var(--surface-1)",
+                color: imageSize === value ? "#fff" : "var(--text-secondary)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
     </>
   );
 }

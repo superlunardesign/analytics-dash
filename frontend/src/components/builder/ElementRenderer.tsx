@@ -109,10 +109,31 @@ export function ElementRenderer({ element, interactive, onLinkClick, productsByI
 
     case "card_link": {
       const href = (c.url as string) || "";
+      const imageSize = (c.image_size as string) || "small";
+
+      if (imageSize === "tall") {
+        return (
+          <Link href={href} interactive={interactive} onLinkClick={onLinkClick}>
+            <div style={{ background: "#fff", borderRadius: 10, overflow: "hidden", border: "1px solid rgba(0,0,0,0.06)" }}>
+              <div style={{ width: "100%", aspectRatio: "16 / 10", background: "#eee" }}>
+                {c.image_url ? <img src={c.image_url as string} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : null}
+              </div>
+              <div style={{ padding: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#111" }}>{(c.title as string) || "Card link"}</div>
+                <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>
+                  {(c.description as string) || ""} {href ? "→" : ""}
+                </div>
+              </div>
+            </div>
+          </Link>
+        );
+      }
+
+      const thumbSize = imageSize === "medium" ? 96 : 56;
       return (
         <Link href={href} interactive={interactive} onLinkClick={onLinkClick}>
           <div style={{ display: "flex", gap: 12, background: "#fff", borderRadius: 10, padding: 10, border: "1px solid rgba(0,0,0,0.06)" }}>
-            <div style={{ width: 56, height: 56, borderRadius: 8, background: "#eee", flexShrink: 0, overflow: "hidden" }}>
+            <div style={{ width: thumbSize, height: thumbSize, borderRadius: 8, background: "#eee", flexShrink: 0, overflow: "hidden" }}>
               {c.image_url ? <img src={c.image_url as string} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : null}
             </div>
             <div>
