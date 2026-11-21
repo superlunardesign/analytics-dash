@@ -304,3 +304,19 @@ def top_products(
     top = counts.most_common(limit)
     products_by_id = {p.id: p for p in db.query(Product).filter(Product.id.in_([pid for pid, _ in top])).all()}
     return [TopProductOut(product=products_by_id[pid], clicks=n) for pid, n in top if pid in products_by_id]
+
+
+@router.delete("/analytics/clear", status_code=204, response_model=None)
+def clear_analytics(page_id: str | None = None, db: Session = Depends(get_db)) -> None:
+    """Permanently deletes click/visit history -- e.g. to wipe out the
+    creator's own testing traffic. Scoped to one page if page_id is given,
+    else every page's data. Irreversible; the frontend confirms before
+    calling this."""
+    click_q = db.query(LinkClick)
+    visit_q = db.query(PageVisit)
+    if page_id:
+        click_q = click_q.filter(LinkClick.page_id == page_id)
+        visit_q = visit_q.filter(PageVisit.page_id == page_id)
+    click_q.delete(synchronize_session=False)
+    visit_q.delete(synchronize_session=False)
+    db.commit()

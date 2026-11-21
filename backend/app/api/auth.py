@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.core.auth import COOKIE_NAME, SESSION_MAX_AGE_SECONDS, create_session_token, optional_tinasuze_user, verify_password
+from app.core.auth import create_session_token, optional_tinasuze_user, verify_password
 from app.core.config import get_settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -19,20 +19,15 @@ class StatusOut(BaseModel):
     username: str | None = None
 
 
-def _set_session_cookie(response: Response, username: str) -> None:
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=create_session_token(username),
-        max_age=SESSION_MAX_AGE_SECONDS,
-        httponly=True,
-        secure=True,
-        samesite="none",
-        path="/",
-    )
+class LoginOut(StatusOut):
+    # The frontend stores this in localStorage and sends it back as
+    # Authorization: Bearer <token> on every /api/builder/* request -- see
+    # app/core/auth.py for why this isn't a cookie.
+    token: str
 
 
-@router.post("/login", response_model=StatusOut)
-def login(payload: LoginIn, response: Response) -> StatusOut:
+@router.post("/login", response_model=LoginOut)
+def login(payload: LoginIn) -> LoginOut:
     settings = get_settings()
     if not settings.tinasuze_dashboard_username or not settings.tinasuze_dashboard_password:
         raise HTTPException(
@@ -44,13 +39,16 @@ def login(payload: LoginIn, response: Response) -> StatusOut:
     )
     if not valid:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
-    _set_session_cookie(response, payload.username)
-    return StatusOut(authenticated=True, username=payload.username)
+    token = create_session_token(payload.username)
+    return LoginOut(authenticated=True, username=payload.username, token=token)
 
 
 @router.post("/logout", status_code=204, response_model=None)
-def logout(response: Response) -> None:
-    response.delete_cookie(key=COOKIE_NAME, path="/", secure=True, samesite="none")
+def logout() -> None:
+    # Stateless JWT -- there's nothing server-side to invalidate. The
+    # frontend just discards its stored token; this endpoint exists for API
+    # symmetry (and in case a revocation list is ever worth adding later).
+    return None
 
 
 @router.get("/status", response_model=StatusOut)

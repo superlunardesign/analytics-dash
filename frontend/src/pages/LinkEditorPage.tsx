@@ -262,7 +262,7 @@ export function LinkEditorPage() {
         </button>
         {pageDetail?.is_published && pageDetail.slug && (
           <a
-            href={`/p/${pageDetail.slug}`}
+            href={`/p/${pageDetail.slug}?preview=1`}
             target="_blank"
             rel="noreferrer"
             style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 13, fontWeight: 700, color: TINASUZE_ACCENT, marginLeft: "auto", textDecoration: "none" }}

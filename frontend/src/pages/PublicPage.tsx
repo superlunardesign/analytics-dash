@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { getPublicPage, logPublicClick } from "../api";
 import { ElementRenderer, SocialLinksRow } from "../components/builder/ElementRenderer";
 import type { PublicPage as PublicPageData } from "../types";
@@ -13,13 +13,18 @@ interface PublicPageProps {
 export function PublicPage({ slugOverride }: PublicPageProps = {}) {
   const { slug: routeSlug } = useParams<{ slug: string }>();
   const slug = slugOverride ?? routeSlug;
+  const [searchParams] = useSearchParams();
+  // ?preview=1 -- set automatically by the "View live page" link in the
+  // dashboard, so checking your own published page never counts as a
+  // real visit/click in your own analytics.
+  const isPreview = searchParams.get("preview") === "1";
   const [page, setPage] = useState<PublicPageData | null>(null);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
-    getPublicPage(slug)
+    getPublicPage(slug, isPreview)
       .then((data) => {
         if (!cancelled) setPage(data);
       })
@@ -29,7 +34,8 @@ export function PublicPage({ slugOverride }: PublicPageProps = {}) {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, isPreview]);
 
   if (notFound) {
     return (
@@ -46,7 +52,7 @@ export function PublicPage({ slugOverride }: PublicPageProps = {}) {
   const theme = page.theme ?? {};
   const handleLinkClick = (url: string, elementId?: string, productId?: string) => {
     if (!slug) return;
-    logPublicClick(slug, url, elementId, productId);
+    logPublicClick(slug, url, elementId, productId, isPreview);
   };
 
   return (

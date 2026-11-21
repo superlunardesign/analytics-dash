@@ -51,7 +51,12 @@ def _resolve_carousel_config(config: dict, db: Session) -> dict:
 
 
 @router.get("/pages/{slug}", response_model=PublicPageOut)
-def get_public_page(slug: str, request: Request, db: Session = Depends(get_db)) -> PublicPageOut:
+def get_public_page(
+    slug: str,
+    request: Request,
+    preview: bool = False,
+    db: Session = Depends(get_db),
+) -> PublicPageOut:
     page = (
         db.query(CreatorPage)
         .options(selectinload(CreatorPage.elements))
@@ -61,8 +66,12 @@ def get_public_page(slug: str, request: Request, db: Session = Depends(get_db)) 
     if page is None:
         raise HTTPException(status_code=404, detail="This page doesn't exist or isn't published")
 
-    db.add(PageVisit(page_id=page.id, referrer=request.headers.get("referer")))
-    db.commit()
+    # preview=1 (the "View live page" link from the dashboard always sends
+    # this) means the creator checking her own page, not a real visitor --
+    # skip logging so her own testing never pollutes her own analytics.
+    if not preview:
+        db.add(PageVisit(page_id=page.id, referrer=request.headers.get("referer")))
+        db.commit()
 
     elements = [
         PageElementOut(
@@ -115,6 +124,9 @@ def log_click(slug: str, payload: LogClickIn, db: Session = Depends(get_db)) -> 
     product_id = payload.product_id
     if product_id and not db.query(Product.id).filter(Product.id == product_id).first():
         product_id = None
+
+    if payload.preview:
+        return
 
     db.add(
         LinkClick(

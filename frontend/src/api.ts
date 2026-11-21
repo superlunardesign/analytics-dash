@@ -28,10 +28,40 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+// The Tinasuze dashboard login session -- an explicit header the app
+// attaches itself, not a cookie. The frontend and API are different
+// *.onrender.com subdomains, which browsers treat as separate "sites" for
+// cookie purposes; mobile Safari in particular blocks or drops that kind
+// of cross-site cookie outright, which showed up as logins that silently
+// didn't stick. A token the app reads from localStorage and sends
+// explicitly isn't subject to any of that.
+const AUTH_TOKEN_KEY = "tinasuze_auth_token";
+
+export function getAuthToken(): string | null {
+  try {
+    return localStorage.getItem(AUTH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthToken(token: string | null): void {
+  try {
+    if (token) localStorage.setItem(AUTH_TOKEN_KEY, token);
+    else localStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {
+    // Private-browsing/storage-blocked edge case -- the session just won't
+    // persist across reloads; not worth surfacing as an error.
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers = new Headers(init?.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   const resp = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: "include",
     ...init,
+    headers,
   });
   if (!resp.ok) {
     const body = await resp.text();
@@ -174,16 +204,22 @@ export function getFormSchemas(): Promise<FormSchema[]> {
 // -- Tinasuze dashboard login (gates /api/builder/*; the public page API
 // below needs no auth at all) --
 
-export function login(username: string, password: string): Promise<AuthStatus> {
-  return request("/api/auth/login", {
+export async function login(username: string, password: string): Promise<AuthStatus> {
+  const result = await request<AuthStatus & { token: string }>("/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),
   });
+  setAuthToken(result.token);
+  return result;
 }
 
-export function logout(): Promise<void> {
-  return request("/api/auth/logout", { method: "POST" });
+export async function logout(): Promise<void> {
+  try {
+    await request("/api/auth/logout", { method: "POST" });
+  } finally {
+    setAuthToken(null);
+  }
 }
 
 export function checkAuthStatus(): Promise<AuthStatus> {
@@ -308,9 +344,12 @@ export function previewLink(url: string): Promise<LinkPreview> {
 export async function uploadImage(file: File): Promise<string> {
   const form = new FormData();
   form.append("file", file);
+  const token = getAuthToken();
+  const headers = new Headers();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   const resp = await fetch(`${API_BASE_URL}/api/builder/uploads`, {
     method: "POST",
-    credentials: "include",
+    headers,
     body: form,
   });
   if (!resp.ok) {
@@ -339,17 +378,27 @@ export function getTopProducts(start: string, end: string, pageId?: string, limi
   return request(`/api/builder/analytics/top-products?${search.toString()}`);
 }
 
+// Permanently deletes click/visit history -- e.g. to wipe out your own
+// testing traffic. Scoped to one page if pageId is given, else everything.
+export function clearAnalytics(pageId?: string): Promise<void> {
+  const search = new URLSearchParams();
+  if (pageId) search.set("page_id", pageId);
+  const qs = search.toString();
+  return request(`/api/builder/analytics/clear${qs ? `?${qs}` : ""}`, { method: "DELETE" });
+}
+
 // -- Public page (no credentials: this is the unauthenticated, visitor-facing API) --
 
-export function getPublicPage(slug: string): Promise<PublicPage> {
-  return fetch(`${API_BASE_URL}/api/public/pages/${slug}`).then(async (resp) => {
+export function getPublicPage(slug: string, preview?: boolean): Promise<PublicPage> {
+  const qs = preview ? "?preview=1" : "";
+  return fetch(`${API_BASE_URL}/api/public/pages/${slug}${qs}`).then(async (resp) => {
     if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
     return resp.json() as Promise<PublicPage>;
   });
 }
 
-export function logPublicClick(slug: string, linkUrl: string, elementId?: string, productId?: string): void {
-  const payload = JSON.stringify({ link_url: linkUrl, element_id: elementId, product_id: productId });
+export function logPublicClick(slug: string, linkUrl: string, elementId?: string, productId?: string, preview?: boolean): void {
+  const payload = JSON.stringify({ link_url: linkUrl, element_id: elementId, product_id: productId, preview });
   const url = `${API_BASE_URL}/api/public/pages/${slug}/click`;
   // sendBeacon fires the request even as the browser navigates away on
   // click (the common case here) -- a normal fetch can get cancelled

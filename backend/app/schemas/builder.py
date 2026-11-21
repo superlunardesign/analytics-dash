@@ -173,6 +173,10 @@ class LogClickIn(BaseModel):
     link_url: str
     element_id: str | None = None
     product_id: str | None = None
+    # See get_public_page's `preview` param -- same "the creator checking
+    # her own page" bypass, applied defense-in-depth here too even though
+    # the frontend's own preview mode already skips calling this at all.
+    preview: bool = False
 
 
 # -- Analytics (private dashboard reads of the public page's traffic) --
