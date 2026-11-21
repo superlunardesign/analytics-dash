@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.exc import IntegrityError
@@ -270,6 +271,19 @@ def top_link_clicks(
     return [TopLinkClickOut(link_url=url, clicks=n) for url, n in counts.most_common(limit)]
 
 
+# Timestamps are stored in UTC, but the chart buckets by calendar day --
+# bucketing by UTC day would file evening (Pacific) visits under
+# tomorrow's date and confused the "today" count, so convert to the
+# creator's local timezone before taking the date.
+DASHBOARD_TZ = ZoneInfo("America/Los_Angeles")
+
+
+def _local_day(visited_at: datetime) -> str:
+    if visited_at.tzinfo is None:
+        visited_at = visited_at.replace(tzinfo=timezone.utc)
+    return visited_at.astimezone(DASHBOARD_TZ).date().isoformat()
+
+
 @router.get("/analytics/visits", response_model=list[PageVisitPointOut])
 def page_visits(
     start: datetime,
@@ -282,7 +296,7 @@ def page_visits(
         q = q.filter(PageVisit.page_id == page_id)
     counts: dict[str, int] = {}
     for (visited_at,) in q.all():
-        day = visited_at.date().isoformat()
+        day = _local_day(visited_at)
         counts[day] = counts.get(day, 0) + 1
     return [PageVisitPointOut(date=day, visits=n) for day, n in sorted(counts.items())]
 
@@ -307,16 +321,20 @@ def top_products(
 
 
 @router.delete("/analytics/clear", status_code=204, response_model=None)
-def clear_analytics(page_id: str | None = None, db: Session = Depends(get_db)) -> None:
+def clear_analytics(page_id: str | None = None, before: datetime | None = None, db: Session = Depends(get_db)) -> None:
     """Permanently deletes click/visit history -- e.g. to wipe out the
     creator's own testing traffic. Scoped to one page if page_id is given,
-    else every page's data. Irreversible; the frontend confirms before
-    calling this."""
+    and/or to everything strictly before `before` if given, else every
+    page's entire history. Irreversible; there is deliberately no button
+    for this in the UI -- it's a one-off, run manually when needed."""
     click_q = db.query(LinkClick)
     visit_q = db.query(PageVisit)
     if page_id:
         click_q = click_q.filter(LinkClick.page_id == page_id)
         visit_q = visit_q.filter(PageVisit.page_id == page_id)
+    if before:
+        click_q = click_q.filter(LinkClick.clicked_at < before)
+        visit_q = visit_q.filter(PageVisit.visited_at < before)
     click_q.delete(synchronize_session=False)
     visit_q.delete(synchronize_session=False)
     db.commit()

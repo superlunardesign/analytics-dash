@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { formatDate } from "../format";
+import { formatDayLabel } from "../format";
 
 export interface LineChartSeries {
   key: string;
@@ -211,7 +211,7 @@ export function LineChart({
         {/* X-axis date ticks */}
         {tickIndices.map((i) => (
           <text key={i} x={plot.xPositions[i]} y={height - 8} fontSize={10} fill="var(--text-muted)" textAnchor="middle">
-            {formatDate(dates[i])}
+            {formatDayLabel(dates[i])}
           </text>
         ))}
 
@@ -280,7 +280,7 @@ export function LineChart({
             zIndex: 1,
           }}
         >
-          <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>{formatDate(dates[hoverIndex])}</div>
+          <div style={{ color: "var(--text-secondary)", marginBottom: 2 }}>{formatDayLabel(dates[hoverIndex])}</div>
           {plot.seriesPaths.map((s) => {
             const v = s.values[hoverIndex];
             return (

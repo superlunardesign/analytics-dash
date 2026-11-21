@@ -28,6 +28,18 @@ export function formatDate(value: string | null | undefined): string {
   return new Date(value).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+// For a plain "YYYY-MM-DD" day (no time component), e.g. a Page Visits
+// chart bucket. `new Date("2026-11-21")` parses that as UTC midnight,
+// which toLocaleDateString() then renders in the browser's local
+// timezone -- shifting the displayed day back by one for any timezone
+// behind UTC. Parsing the components directly avoids that shift.
+export function formatDayLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return "—";
+  return new Date(year, month - 1, day).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   return new Date(value).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
