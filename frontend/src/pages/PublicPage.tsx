@@ -10,6 +10,24 @@ interface PublicPageProps {
   slugOverride?: string;
 }
 
+const CLARITY_PROJECT_ID = import.meta.env.VITE_CLARITY_PROJECT_ID as string | undefined;
+
+// Unlike the social-preview <meta> tags (baked in at build time -- see
+// scripts/inject-social-meta.mjs -- because link-unfurler bots never run
+// JS), Clarity only needs to run in a real visitor's browser, so it's
+// injected right here at runtime instead. That means it only ever loads
+// when this component actually renders (never on the /builder/* dashboard
+// routes), works on the single shared frontend deploy with nothing more
+// than one env var, and needs no second dedicated static site the way the
+// social tags do.
+function loadClarity() {
+  if (!CLARITY_PROJECT_ID || document.getElementById("ms-clarity")) return;
+  const script = document.createElement("script");
+  script.id = "ms-clarity";
+  script.text = `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window, document, "clarity", "script", "${CLARITY_PROJECT_ID}");`;
+  document.head.appendChild(script);
+}
+
 export function PublicPage({ slugOverride }: PublicPageProps = {}) {
   const { slug: routeSlug } = useParams<{ slug: string }>();
   const slug = slugOverride ?? routeSlug;
@@ -20,6 +38,13 @@ export function PublicPage({ slugOverride }: PublicPageProps = {}) {
   const isPreview = searchParams.get("preview") === "1";
   const [page, setPage] = useState<PublicPageData | null>(null);
   const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    // Same reasoning as the preview-mode skip on page visits/clicks below --
+    // your own visits to "View live page" shouldn't show up as a real
+    // visitor session in Clarity either.
+    if (!isPreview) loadClarity();
+  }, [isPreview]);
 
   useEffect(() => {
     if (!slug) return;
